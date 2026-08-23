@@ -1,0 +1,25 @@
+{
+  "name": "ecommerce",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev:frontend": "npx shadow-cljs watch app",
+    "dev:backend": "clj -M:dev:run",
+    "build:frontend": "npx shadow-cljs release app",
+    "build:backend": "clj -T:build uber",
+    "test:frontend": "npx shadow-cljs compile test && node out/test/test.js",
+    "test:backend": "clj -M:test -m kaocha.runner",
+    "test:coverage": "clj -M:test -m kaocha.runner --plugin cloverage"
+  },
+  "devDependencies": {
+    "shadow-cljs": "^2.28.0",
+    "tailwindcss": "^3.4.0",
+    "autoprefixer": "^10.4.0",
+    "postcss": "^8.4.0",
+    "postcss-cli": "^11.0.0"
+  },
+  "dependencies": {
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0"
+  }
+}

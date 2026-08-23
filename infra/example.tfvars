@@ -1,0 +1,6 @@
+aws_region       = "us-east-1"
+environment      = "production"
+instance_type    = "t3.micro"
+key_pair_name    = "your-key-pair-name"
+db_password      = "change-me-to-a-secure-password"
+allowed_ssh_cidr = "YOUR_IP/32"

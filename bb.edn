@@ -1,0 +1,76 @@
+{:tasks
+ {:enter (do (def DB_PORT (or (System/getenv "DB_PORT") "5433"))
+             (def dev-env {"DB_PORT" DB_PORT}))
+
+  dev
+  {:doc  "Start Postgres + backend + frontend + CSS in parallel"
+   :task (do (shell "docker compose -f docker-compose.dev.yml up -d")
+             (Thread/sleep 2000)
+             (shell {:extra-env dev-env} "clojure -M:dev -m ecommerce.db.migrations")
+             (run '-dev-services {:parallel true}))}
+
+  -dev-services
+  {:depends [dev:backend dev:frontend dev:css]}
+
+  dev:backend
+  {:doc  "Start backend server on port 8080"
+   :task (clojure {:extra-env dev-env} "-M:dev -m ecommerce.core")}
+
+  dev:frontend
+  {:doc  "Start shadow-cljs watch with hot-reload"
+   :task (shell "npx shadow-cljs watch app")}
+
+  dev:css
+  {:doc  "Watch and rebuild Tailwind CSS"
+   :task (shell "npx tailwindcss -i resources/public/css/input.css -o resources/public/css/output.css --watch")}
+
+  db:up
+  {:doc  "Start Postgres only"
+   :task (shell "docker compose -f docker-compose.dev.yml up -d")}
+
+  db:down
+  {:doc  "Stop Postgres"
+   :task (shell "docker compose -f docker-compose.dev.yml down")}
+
+  db:reset
+  {:doc  "Destroy Postgres volume and restart fresh"
+   :task (shell "docker compose -f docker-compose.dev.yml down -v && docker compose -f docker-compose.dev.yml up -d")}
+
+  migrate
+  {:doc  "Run database migrations"
+   :task (clojure {:extra-env dev-env} "-M:dev -m ecommerce.db.migrations")}
+
+  test
+  {:doc  "Run all tests"
+   :task (do (run 'test:backend)
+             (run 'test:frontend))}
+
+  test:backend
+  {:doc  "Run backend tests"
+   :task (clojure {:extra-env dev-env} "-M:test -m kaocha.runner")}
+
+  test:frontend
+  {:doc  "Run frontend tests"
+   :task (shell "npx shadow-cljs compile test && node out/test/test.js")}
+
+  test:coverage
+  {:doc  "Run backend tests with coverage"
+   :task (clojure {:extra-env dev-env} "-M:test -m kaocha.runner --plugin cloverage")}
+
+  build
+  {:doc  "Build everything for production"
+   :task (do (shell "npx shadow-cljs release app")
+             (shell "npx tailwindcss -i resources/public/css/input.css -o resources/public/css/output.css --minify")
+             (clojure "-T:build uber"))}
+
+  docker
+  {:doc  "Build and run with Docker (production mode)"
+   :task (shell "docker compose up --build")}
+
+  clean
+  {:doc  "Remove build artifacts"
+   :task (do (shell "rm -rf target resources/public/js out .cpcache"))}
+
+  repl
+  {:doc  "Start a REPL (connect editor to port 7888)"
+   :task (clojure {:extra-env dev-env} "-M:dev -m nrepl.cmdline --port 7888")}}}

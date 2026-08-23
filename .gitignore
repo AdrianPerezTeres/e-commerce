@@ -1,0 +1,13 @@
+target/
+node_modules/
+.shadow-cljs/
+.cpcache/
+.nrepl-port
+out/
+resources/public/js/main.js
+resources/public/js/cljs-runtime/
+resources/public/js/manifest.edn
+resources/public/css/output.css
+*.jar
+.env
+.DS_Store

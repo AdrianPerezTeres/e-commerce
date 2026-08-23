@@ -1,0 +1,14 @@
+{:server {:port #long #or [#env PORT 8080]}
+
+ :database {:dbtype   "postgresql"
+            :host     #or [#env DB_HOST "localhost"]
+            :port     #long #or [#env DB_PORT 5432]
+            :dbname   #or [#env DB_NAME "ecommerce"]
+            :user     #or [#env DB_USER "ecommerce"]
+            :password #or [#env DB_PASSWORD "ecommerce"]}
+
+ :auth {:required #boolean #or [#env AUTH_REQUIRED false]}
+
+ :cognito {:region      #or [#env AWS_REGION "us-east-1"]
+           :user-pool-id #or [#env COGNITO_USER_POOL_ID ""]
+           :client-id    #or [#env COGNITO_CLIENT_ID ""]}}
