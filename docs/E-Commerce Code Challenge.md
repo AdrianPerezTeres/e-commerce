@@ -22,7 +22,7 @@
   - **XSS (Cross-Site Scripting)** — Script tags injected as product names, stripped via regex before storage and auto-escaped by React on render.
   - **SQL Injection** — Malicious SQL in product names, neutralized by parameterized queries that treat all input as literal data.
 
-- **Threat Reporting** — I added a detection layer that scans raw CSV values before sanitization, logging every identified attack. The import results UI displays a "Threats Blocked" panel with type, line number, and action taken — proving the system catches and reports threats transparently.
+- **Threat Reporting** — I added a detection layer that scans raw values before sanitization, logging every identified attack. The import results UI displays a "Threats Blocked" panel with type, line number, and action taken — proving the system catches and reports threats transparently. The same sanitization is applied to CRUD API endpoints, rejecting malicious content with detailed error responses.
 
 - **Real-World Validation** — I deployed the application to the web to test against scenarios that only surface in production: larger files, concurrent requests, and more robust attack patterns.
 
@@ -32,7 +32,7 @@
 
 - **Not Requested, But Demonstrated** — The challenge didn't ask for cloud infrastructure, but I wanted to prove my knowledge as an end-to-end senior developer with experience building enterprise-grade applications.
 
-- **AWS Infrastructure** — Cognito for authentication with JWT tokens (Auth0 pattern), an EC2 instance for the application (an RDS instance was unnecessary for this demo), and ECR for Docker image storage.
+- **AWS Infrastructure** — An EC2 instance running Docker Compose for the application, ALB with ACM for HTTPS termination, and ECR for Docker image storage. JWT-based auth with role-based demo accounts (admin/buyer/reader) keeps authentication simple and testable — no external identity provider needed.
 
 - **Infrastructure as Code** — All AWS resources are defined in Terraform, version-controlled alongside the application. The pipeline runs `terraform plan` and `terraform apply` automatically on every merge to main.
 
