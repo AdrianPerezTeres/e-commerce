@@ -5,12 +5,12 @@
 (deftest test-extract-user
   (testing "extracts user from claims"
     (let [claims {:sub "user-123" :email "test@example.com" (keyword "cognito:username") "testuser"}
-          user   (auth/extract-user claims)]
+          user   (#'auth/extract-user claims)]
       (is (= "user-123" (:user-id user)))
       (is (= "test@example.com" (:email user)))
       (is (= "testuser" (:username user)))))
   (testing "returns nil for nil claims"
-    (is (nil? (auth/extract-user nil)))))
+    (is (nil? (#'auth/extract-user nil)))))
 
 (deftest test-wrap-require-auth
   (testing "allows authenticated requests"

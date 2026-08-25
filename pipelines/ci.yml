@@ -78,6 +78,12 @@ stages:
             inputs:
               versionSpec: '$(nodeVersion)'
 
+          - script: |
+              curl -L -O https://github.com/clojure/brew-install/releases/latest/download/linux-install.sh
+              chmod +x linux-install.sh
+              sudo ./linux-install.sh
+            displayName: 'Install Clojure CLI'
+
           - script: npm ci
             displayName: 'Install dependencies'
 
