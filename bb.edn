@@ -10,7 +10,12 @@
              (run '-dev-services {:parallel true}))}
 
   -dev-services
-  {:depends [dev:backend dev:frontend dev:css]}
+  {:depends [dev:backend dev:frontend dev:css dev:browser]}
+
+  dev:browser
+  {:doc  "Open browser after services start"
+   :task (do (Thread/sleep 6000)
+             (shell "cmd /c start http://localhost:8080"))}
 
   dev:backend
   {:doc  "Start backend server on port 8080"
@@ -34,7 +39,8 @@
 
   db:reset
   {:doc  "Destroy Postgres volume and restart fresh"
-   :task (shell "docker compose -f docker-compose.dev.yml down -v && docker compose -f docker-compose.dev.yml up -d")}
+   :task (do (shell "docker compose -f docker-compose.dev.yml down -v")
+             (shell "docker compose -f docker-compose.dev.yml up -d"))}
 
   migrate
   {:doc  "Run database migrations"

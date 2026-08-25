@@ -14,4 +14,7 @@
 (defn init []
   (rf/dispatch-sync [:initialize-db])
   (routes/start!)
-  (mount-root))
+  (mount-root)
+  ;; Auto-login as admin in development (shadow-cljs sets goog.DEBUG)
+  (when ^boolean goog.DEBUG
+    (rf/dispatch [:login {:username "admin" :password "admin123"}])))

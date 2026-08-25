@@ -29,6 +29,10 @@
 (rf/reg-sub :orders-loading
   (fn [db _] (get-in db [:orders :loading])))
 
+(rf/reg-sub :order-detail
+  (fn [db [_ order-id]]
+    (get-in db [:orders :details order-id])))
+
 (rf/reg-sub :search-query
   (fn [db _] (get-in db [:search :query])))
 

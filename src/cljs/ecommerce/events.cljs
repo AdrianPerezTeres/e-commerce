@@ -165,6 +165,19 @@
        (assoc-in [:orders :items] orders)
        (assoc-in [:orders :loading] false))))
 
+(rf/reg-event-fx
+ :fetch-order-detail
+ (fn [{:keys [db]} [_ order-id]]
+   (http/get! {:uri        (str "/api/orders/" order-id)
+               :on-success #(rf/dispatch [:order-detail-loaded order-id %])
+               :on-failure #(rf/dispatch [:set-notification {:type :error :message "Failed to load order details"}])})
+   {}))
+
+(rf/reg-event-db
+ :order-detail-loaded
+ (fn [db [_ order-id detail]]
+   (assoc-in db [:orders :details order-id] detail)))
+
 ;; Search
 (rf/reg-event-db
  :set-search-query
