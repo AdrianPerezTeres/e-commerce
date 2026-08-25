@@ -55,9 +55,9 @@ resource "aws_iam_user_policy" "ci" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "ECRAuth"
-        Effect = "Allow"
-        Action = "ecr:GetAuthorizationToken"
+        Sid      = "ECRAuth"
+        Effect   = "Allow"
+        Action   = "ecr:GetAuthorizationToken"
         Resource = "*"
       },
       {
@@ -75,9 +75,9 @@ resource "aws_iam_user_policy" "ci" {
         Resource = aws_ecr_repository.app.arn
       },
       {
-        Sid    = "EC2Describe"
-        Effect = "Allow"
-        Action = "ec2:DescribeInstances"
+        Sid      = "EC2Describe"
+        Effect   = "Allow"
+        Action   = "ec2:DescribeInstances"
         Resource = "*"
       },
       {
