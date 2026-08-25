@@ -7,6 +7,7 @@
             [ring.middleware.keyword-params :refer [wrap-keyword-params]]
             [ring.middleware.multipart-params :refer [wrap-multipart-params]]
             [ecommerce.middleware.auth :refer [wrap-auth wrap-require-auth wrap-require-role]]
+            [ecommerce.middleware.error :refer [wrap-exception]]
             [ecommerce.handlers.products :as products]
             [ecommerce.handlers.orders :as orders]
             [ecommerce.handlers.health :as health]
@@ -51,13 +52,17 @@
     ["/:id" {:get {:handler    orders/get-order
                    :middleware [wrap-require-auth]}}]]])
 
+(def ^:private index-html
+  (delay (slurp (clojure.java.io/resource "public/index.html"))))
+
 (defn create-app []
   (-> (ring/ring-handler
        (ring/router
         [api-routes]
         {:conflicts nil
          :data      {:muuntaja   m/instance
-                     :middleware [wrap-params
+                     :middleware [wrap-exception
+                                  wrap-params
                                   wrap-keyword-params
                                   muuntaja/format-middleware
                                   wrap-auth]}})
@@ -67,7 +72,7 @@
          {:not-found (fn [_req]
                        {:status 200
                         :headers {"Content-Type" "text/html"}
-                        :body (slurp (clojure.java.io/resource "public/index.html"))})})))
+                        :body @index-html})})))
       (wrap-cors :access-control-allow-origin [#".*"]
                  :access-control-allow-methods [:get :post :put :delete :options]
                  :access-control-allow-headers [:content-type :authorization])))

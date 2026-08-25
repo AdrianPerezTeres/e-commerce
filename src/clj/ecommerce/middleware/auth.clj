@@ -48,11 +48,12 @@
       (log/warn "Cognito JWT verification failed:" (.getMessage e))
       nil)))
 
-(def ^:private jwt-secret "ecommerce-demo-secret-key-2024")
+(defn- jwt-secret []
+  (get-in config [:auth :jwt-secret]))
 
 (defn- verify-local-token [token]
   (try
-    (jwt/unsign token jwt-secret {:alg :hs256})
+    (jwt/unsign token (jwt-secret) {:alg :hs256})
     (catch Exception _
       nil)))
 

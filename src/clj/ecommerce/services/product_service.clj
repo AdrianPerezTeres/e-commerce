@@ -48,7 +48,7 @@
         (:updated-by clean)]))
     (catch Exception e
       (log/error e "Failed to create product")
-      {:error (.getMessage e)})))
+      {:error "Failed to create product"})))
 
 (defn update-product [id data]
   (let [existing (get-product id)]
@@ -80,7 +80,7 @@
             id]))
         (catch Exception e
           (log/error e "Failed to update product")
-          {:error (.getMessage e)})))))
+          {:error "Failed to update product"})))))
 
 (defn delete-product [id]
   (let [result (db/execute-one! ["DELETE FROM products WHERE id = ?::uuid RETURNING id" id])]

@@ -92,33 +92,36 @@
               "Add"]])]]))))
 
 (defn products-page []
-  (rf/dispatch [:fetch-products])
-  (fn []
-    (let [products @(rf/subscribe [:products])
-          loading  @(rf/subscribe [:products-loading])]
-      [:div
-       [:h1 {:class "text-3xl font-bold text-gray-900 mb-6"} "Products"]
-       [search-bar]
-       (cond
-         loading
-         [:div {:class "text-center py-12 text-gray-400"} "Loading products..."]
+  (let [initialized? (r/atom false)]
+    (fn []
+      (when-not @initialized?
+        (reset! initialized? true)
+        (rf/dispatch [:fetch-products]))
+      (let [products @(rf/subscribe [:products])
+            loading  @(rf/subscribe [:products-loading])]
+        [:div
+         [:h1 {:class "text-3xl font-bold text-gray-900 mb-6"} "Products"]
+         [search-bar]
+         (cond
+           loading
+           [:div {:class "text-center py-12 text-gray-400"} "Loading products..."]
 
-         (empty? products)
-         [:div {:class "text-center py-12 text-gray-400"} "No products found."]
+           (empty? products)
+           [:div {:class "text-center py-12 text-gray-400"} "No products found."]
 
-         :else
-         [:div {:class "overflow-x-auto bg-white rounded-xl border border-gray-200 shadow-sm"}
-          [:table {:class "w-full"}
-           [:thead
-            [:tr {:class "border-b border-gray-200 text-left bg-gray-50"}
-             [:th {:class "px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"} "Product"]
-             [:th {:class "px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"} "SKU"]
-             [:th {:class "px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"} "Category"]
-             [:th {:class "px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"} "Price"]
-             [:th {:class "px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"} "Stock"]
-             [:th {:class "px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"} "Weight"]
-             [:th {:class "px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"} ""]]]
-           [:tbody
-            (for [product products]
-              ^{:key (:id product)}
-              [product-row product])]]])])))
+           :else
+           [:div {:class "overflow-x-auto bg-white rounded-xl border border-gray-200 shadow-sm"}
+            [:table {:class "w-full"}
+             [:thead
+              [:tr {:class "border-b border-gray-200 text-left bg-gray-50"}
+               [:th {:class "px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"} "Product"]
+               [:th {:class "px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"} "SKU"]
+               [:th {:class "px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"} "Category"]
+               [:th {:class "px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"} "Price"]
+               [:th {:class "px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"} "Stock"]
+               [:th {:class "px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"} "Weight"]
+               [:th {:class "px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"} ""]]]
+             [:tbody
+              (for [product products]
+                ^{:key (:id product)}
+                [product-row product])]]])]))))

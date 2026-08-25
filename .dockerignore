@@ -1,0 +1,14 @@
+.git
+.github
+.shadow-cljs
+node_modules
+out
+target
+dev
+test
+docs
+infra
+pipelines
+*.md
+.gitignore
+.dockerignore

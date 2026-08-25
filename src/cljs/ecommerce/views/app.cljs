@@ -20,11 +20,9 @@
      role]))
 
 (defn nav-link [route-name label]
-  (let [current-route @(rf/subscribe [:current-route])
-        active?       (= route-name (get-in current-route [:data :name]))]
-    [:a {:href  (routes/href route-name)
-         :class "px-4 py-2 rounded-md text-sm font-medium transition-colors focus:outline-none text-indigo-100 hover:bg-white/10 hover:text-white"}
-     label]))
+  [:a {:href  (routes/href route-name)
+       :class "px-4 py-2 rounded-md text-sm font-medium transition-colors focus:outline-none text-indigo-100 hover:bg-white/10 hover:text-white"}
+   label])
 
 (defn about-dialog [on-close]
   [:div {:class    "fixed inset-0 z-50 flex items-center justify-center bg-black/40"
@@ -87,8 +85,8 @@
                   :alt   "Avatar"
                   :class "h-10 w-10 rounded-full object-cover flex-shrink-0"}]
            [:div
-            [:p {:class "text-sm font-medium text-gray-900"} "Adrian Perez"]
-            [:p {:class "text-xs text-gray-400"} "adrian@appliedprogramming.io"]]]
+            [:p {:class "text-sm font-medium text-gray-900"} (:username user)]
+            [:p {:class "text-xs text-gray-400"} (:email user)]]]
           [:div {:class "px-4 pb-2"}
            [role-badge role]]
                 [:hr {:class "my-1 border-gray-200"}]
@@ -142,16 +140,28 @@
               cart-count])])]]]]))
 
 (defn notification-bar []
-  (let [notification @(rf/subscribe [:notification])]
-    (when notification
-      (js/setTimeout #(rf/dispatch [:clear-notification]) 4000)
-      [:div {:class (str "fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-lg shadow-lg text-white cursor-pointer "
-                         (case (:type notification)
-                           :success "bg-green-600"
-                           :error   "bg-red-600"
-                           "bg-blue-600"))
-             :on-click #(rf/dispatch [:clear-notification])}
-       (:message notification)])))
+  (let [timer-ref (r/atom nil)]
+    (r/create-class
+     {:component-will-unmount
+      (fn [_] (when-let [t @timer-ref] (js/clearTimeout t)))
+      :reagent-render
+      (fn []
+        (let [notification @(rf/subscribe [:notification])]
+          (when notification
+            (when-not @timer-ref
+              (reset! timer-ref
+                      (js/setTimeout (fn []
+                                       (reset! timer-ref nil)
+                                       (rf/dispatch [:clear-notification]))
+                                     4000)))
+            [:div {:class (str "fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-lg shadow-lg text-white cursor-pointer "
+                               (case (:type notification)
+                                 :success "bg-green-600"
+                                 :error   "bg-red-600"
+                                 "bg-blue-600"))
+                   :on-click #(do (when-let [t @timer-ref] (js/clearTimeout t) (reset! timer-ref nil))
+                                  (rf/dispatch [:clear-notification]))}
+             (:message notification)])))})))
 
 (defn current-page []
   (let [route @(rf/subscribe [:current-route])

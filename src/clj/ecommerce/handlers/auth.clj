@@ -3,7 +3,8 @@
             [clojure.tools.logging :as log]
             [ecommerce.config :refer [config]]))
 
-(def ^:private jwt-secret "ecommerce-demo-secret-key-2024")
+(defn- jwt-secret []
+  (get-in config [:auth :jwt-secret]))
 
 (def ^:private demo-users
   {"admin"  {:password "admin123"  :role "admin"  :email "admin@demo.local"}
@@ -26,7 +27,7 @@
                     :email    (:email user)
                     :role     (:role user)
                     :exp      (+ (quot (System/currentTimeMillis) 1000) 86400)}
-            token  (jwt/sign claims jwt-secret {:alg :hs256})]
+            token  (jwt/sign claims (jwt-secret) {:alg :hs256})]
         (log/info "User logged in:" username "role:" (:role user))
         {:status 200
          :body   {:token    token

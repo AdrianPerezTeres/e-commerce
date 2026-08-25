@@ -1,19 +1,19 @@
-;; CSV Import — Security & Sanitization
+;; CSV Import — 9 Security Defenses
 ;;
-;; Reviewing the CSV file provided I found 3 diffferent security attacks:
+;; Threats detected in the provided CSV:
+;; 1. XSS — <script> tags in product names (stripped via HTML regex)
+;; 2. SQL Injection — DROP TABLE payloads (neutralized by parameterized queries)
+;; 3. Formula Injection — =, +, -, @, | prefixes (stripped before storage)
+;; 4. Threat Reporting — scans raw values BEFORE sanitization, logs every attack
 ;;
-;; 1. XSS (Cross-Site Scripting) — Line 20: <script>alert('xss')</script> as product name
-;; 2. Threat Reporting — detect-threats scans raw values BEFORE sanitization
-;; 3. SQL Injection — Line 29: Robert'); DROP TABLE products;-- as product name
-;; 4. Formula Injection — strips =, +, -, @, | prefixes that trigger Excel/Sheets execution
+;; Handler-level defenses (see handlers/products.clj):
+;; 5. File type validation (.csv only)
+;; 6. File size limit (20MB)
+;; 7. Row limit (100K)
+;; 8. Nil file check
+;; 9. Magic byte validation (detects binary files disguised as .csv)
 ;;
-;; Additional defenses (handler level — see handlers/products.clj):
-;; 5. File type validation: only .csv files accepted
-;; 6. File size limit: 20MB max to prevent memory exhaustion
-;; 7. Row limit: 100,000 rows max to prevent DB flooding
-;; 8. Nil file check: rejects requests with no file uploaded
-;; 9. Magic byte validation: reads first 512 bytes to detect binary files disguised as .csv
-;;
+;; All inserts run inside a single transaction for atomicity.
 
 (ns ecommerce.services.csv-import
   (:require [clojure.data.csv :as csv]
@@ -91,8 +91,8 @@
 
 ;; [3] SQL Injection Defense — parameterized queries prevent injection via ? placeholders
 ;; Simple but effective
-(defn- insert-product! [{:keys [name sku description category price stock weight-kg]}]
-  (db/execute-one!
+(defn- insert-product! [tx {:keys [name sku description category price stock weight-kg]}]
+  (db/tx-execute-one! tx
    ["INSERT INTO products (name, sku, description, category, price, stock, weight_kg)
      VALUES (?, ?, ?, ?, ?::decimal, ?::integer, ?::decimal)
      ON CONFLICT (sku) DO NOTHING
@@ -102,39 +102,40 @@
 (defn process-csv [file]
   (with-open [reader (io/reader file)]
     (let [rows       (csv/read-csv reader)
-          header     (first rows)
+          _header    (first rows)
           data-rows  (take max-rows (rest rows))
-          results    (reduce
-                      (fn [acc [idx row]]
-                        (if (every? str/blank? row)
-                          (update acc :skipped inc)
-                          (let [line-num  (+ idx 2)
-                                threats   (detect-threats row line-num)
-                                acc       (update acc :threats into threats)
-                                parsed    (parse-row row)
-                                validated (validate-row parsed line-num)]
-                            (if (:valid validated)
-                              (try
-                                (let [result (insert-product! (:data validated))]
-                                  (if result
-                                    (update acc :imported inc)
-                                    (update acc :duplicates conj
-                                            {:line line-num
-                                             :sku  (:sku parsed)
-                                             :reason "duplicate SKU"})))
-                                (catch Exception e
-                                  (update acc :errors conj
-                                          {:line  line-num
-                                           :error (.getMessage e)})))
-                              (update acc :errors conj
-                                      {:line   (:line validated)
-                                       :errors (:errors validated)})))))
-                      {:imported   0
-                       :skipped    0
-                       :duplicates []
-                       :errors     []
-                       :threats    []}
-                      (map-indexed vector data-rows))]
+          results    (db/with-transaction [tx]
+                       (reduce
+                        (fn [acc [idx row]]
+                          (if (every? str/blank? row)
+                            (update acc :skipped inc)
+                            (let [line-num  (+ idx 2)
+                                  threats   (detect-threats row line-num)
+                                  acc       (update acc :threats into threats)
+                                  parsed    (parse-row row)
+                                  validated (validate-row parsed line-num)]
+                              (if (:valid validated)
+                                (try
+                                  (let [result (insert-product! tx (:data validated))]
+                                    (if result
+                                      (update acc :imported inc)
+                                      (update acc :duplicates conj
+                                              {:line line-num
+                                               :sku  (:sku parsed)
+                                               :reason "duplicate SKU"})))
+                                  (catch Exception e
+                                    (update acc :errors conj
+                                            {:line  line-num
+                                             :error (.getMessage e)})))
+                                (update acc :errors conj
+                                        {:line   (:line validated)
+                                         :errors (:errors validated)})))))
+                        {:imported   0
+                         :skipped    0
+                         :duplicates []
+                         :errors     []
+                         :threats    []}
+                        (map-indexed vector data-rows)))]
       (let [threat-counts (when (seq (:threats results))
                             (->> (:threats results)
                                  (group-by :type)

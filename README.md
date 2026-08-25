@@ -1,10 +1,16 @@
 # E-Commerce Application
 
-A full-stack e-commerce application built with Clojure (backend) and ClojureScript (frontend), demonstrating enterprise-grade architecture decisions, clean separation of concerns, and production-ready deployment infrastructure.
+A full-stack e-commerce application built with Clojure (backend) and ClojureScript (frontend).
+
+**Live site:** [https://ecommerce.appliedprogramming.io](https://ecommerce.appliedprogramming.io)
 
 **CSV file downloaded:** August 18, 2026
 
-**Presentation:** [Executive Summary (PowerPoint)](docs/E-Commerce%20Code%20Challenge.pptx) — 3 slides covering architecture, security analysis, and CI/CD infrastructure.
+**Presentation:** [Executive Summary (PowerPoint)](docs/E-Commerce%20Code%20Challenge.pptx)
+
+> *In the era of AI we know any specific requirement can be achieved easily. This challenge is not focused on just completing it but we want you to ask the right questions and guide AI to make use of your experience and foreseeing skills.*
+>
+> I leaned into this — used AI throughout, guided by my experience shipping production systems. The decisions below reflect what I'd push for on a real project: security analysis of the CSV file, infrastructure as code, CI/CD, HTTPS, and auth. Not because the spec asked for it, but because that's what production needs.
 
 ## Architecture Overview
 
@@ -64,80 +70,49 @@ A full-stack e-commerce application built with Clojure (backend) and ClojureScri
 | CI/CD          | Azure DevOps Pipelines              | Parallel test/build stages, Terraform apply, auto-deploy     |
 | Testing        | Kaocha + Cloverage                  | Clojure test runner with coverage reporting                  |
 
-## Why Go Beyond the Requirements?
-
-The challenge asked for a CRUD app with CSV import — achievable in a weekend with any framework. I deliberately chose to go further to demonstrate the kind of thinking and ownership I bring to real projects:
-
-- **Clojure instead of .NET/Angular** — I could have used my daily stack (.NET + Angular) and finished faster, but the Client uses Clojure. Learning and delivering in an unfamiliar language within a tight deadline shows adaptability and commitment.
-- **AWS deployment instead of local-only** — Not required, but a running production URL proves the app works beyond `localhost`. It also demonstrates infrastructure skills (Terraform, CI/CD, Docker, SSM) that are hard to show in a code review alone.
-- **HTTPS + ALB + ACM instead of plain HTTP** — A simple EC2 with port 80 would have worked. Adding an Application Load Balancer with a TLS certificate shows understanding of production architecture.
-- **Cognito (Auth0-style) instead of no auth** — The challenge didn't require authentication. Adding JWT-based RBAC with three roles and a Cognito-ready backend demonstrates security awareness. The simpler path would have been no login at all.
-- **9 security defenses instead of basic validation** — I could have just parsed the CSV and inserted rows. Instead, I analyzed the provided file for attack vectors (XSS, SQL injection, formula injection) and built a layered defense pipeline with threat reporting.
-- **CI/CD pipeline instead of manual deploys** — Azure DevOps with parallel test stages, coverage reporting, Terraform apply, and zero-touch SSM deployment. Every push to main builds, tests, validates, and deploys automatically.
-
-None of these were required. All of them reflect how I approach real work — not just meeting the spec, but thinking about what a production system actually needs.
-
 ## Key Design Decisions
 
-### 1. Clojure Full-Stack (vs .NET + Angular)
+### 1. Clojure Full-Stack
 
-I chose Clojure because the Client uses it. Rather than submitting a polished solution in a familiar stack, I wanted to demonstrate willingness to learn and deliver in the team's actual technology. ClojureScript on the frontend (Reagent + Re-frame) keeps the entire codebase in one language and ecosystem.
+I chose Clojure because the Client uses it. Rather than submitting a polished solution in my daily stack (.NET + Angular), I wanted to demonstrate willingness to learn and deliver in the team's actual technology. ClojureScript on the frontend (Reagent + Re-frame) keeps the entire codebase in one language and ecosystem.
 
-**Alternative considered:** .NET backend + Angular frontend — my daily stack, would have been faster but wouldn't demonstrate alignment with the Client's technology choices.
+### 2. Separate API + SPA
 
-### 2. Separate API + SPA (vs Server-Rendered)
-
-Chose a REST API backend with a ClojureScript SPA over server-rendered templates because:
+REST API backend with a ClojureScript SPA over server-rendered templates:
 - Clear separation of concerns — backend is a pure API
 - API-first design enables future clients (mobile, integrations)
-- Demonstrates architectural thinking beyond "just make it work"
 - Re-frame state management showcases the ClojureScript ecosystem
 
-**Alternative considered:** Server-rendered with Hiccup + HTMX — simpler but less demonstrative of enterprise architecture.
-
-### 3. PostgreSQL (vs SQLite/MongoDB)
+### 3. PostgreSQL
 
 - Products, orders, and order items are naturally relational
 - ACID transactions are critical for purchase operations (stock decrement)
 - PostgreSQL's ILIKE and trigram indexing support product search
-- Production-grade database that scales
 
-**Alternative considered:** SQLite for zero-config simplicity, or MongoDB for schema flexibility — but relational integrity and transactional guarantees were more important for an e-commerce domain.
+### 4. CSV Import Security
 
-### 4. CSV Import — 9 Security Defenses (vs Basic Parsing)
+The provided CSV contains intentional attack vectors. Rather than just parsing and inserting, I analyzed the file and built a layered defense pipeline with threat reporting:
 
-The provided CSV contains intentional data quality challenges and security attack vectors. The simpler approach would have been to parse and insert — instead, I analyzed the file for attack vectors and built a layered defense pipeline with threat reporting. Our import implements 9 numbered defenses (see `csv_import.clj` and `handlers/products.clj`):
+**Threats detected and neutralized:**
+1. **XSS injection** (`<script>` tags) — stripped via regex; React/Reagent auto-escapes on render as second layer
+2. **Threat reporting** — scans raw values before sanitization, logs every detected attack
+3. **SQL injection** (`DROP TABLE`) — parameterized queries prevent injection at the driver level
+4. **Formula injection** (`=`, `+`, `-`, `@`, `|` prefixes) — stripped to prevent spreadsheet execution
 
-**Security threats detected and neutralized:**
-1. **XSS injection** (`<script>` tags) — stripped via HTML tag regex. React/Reagent auto-escapes on render as second layer
-2. **Threat reporting** — scans raw values before sanitization, logs every detected attack with type, line, and field
-3. **SQL injection** (`DROP TABLE`) — parameterized queries (next.jdbc) prevent injection at the driver level
-4. **Formula injection** (`=`, `+`, `-`, `@`, `|` prefixes) — stripped to prevent Excel/Sheets execution if data is exported
+**Handler-level defenses:**
+5. File type validation (`.csv` only)
+6. File size limit (20MB)
+7. Row limit (100K)
+8. Nil file check
+9. Magic byte validation (detects binary files disguised as CSV)
 
-**Additional defenses (handler level):**
-5. **File type validation** — only `.csv` files accepted, rejects EXE/binary/other uploads
-6. **File size limit** — 20MB max to prevent memory exhaustion
-7. **Row limit** — 100,000 rows max to prevent DB flooding
-8. **Nil file check** — rejects requests with no file uploaded
+The same sanitization (XSS + formula stripping) is applied to CRUD API endpoints — not just imports.
 
-**Data quality handling:**
-- **Invalid prices** (`"free"`, `"$29.99"`) — coercion pipeline strips currency symbols, rejects non-numeric values
-- **Negative stock** — rejected with error, as negative stock is logically invalid
-- **Duplicate SKUs** — `ON CONFLICT (sku) DO NOTHING`, first occurrence wins, duplicates reported
-- **Empty rows** — detected and skipped silently
-- **Missing required fields** — row skipped with descriptive error per field
+**Test files:** See `docs/test-imports/` for 13 test CSVs covering all 9 defenses.
 
-The import returns a detailed report: imported count, skipped count, duplicate details, per-row errors with line numbers, and a **"Threats Blocked"** panel showing every detected attack with color-coded badges.
+### 5. Authentication & RBAC
 
-**Test files:** See `docs/test-imports/` for 13 test CSVs covering all 9 defenses — XSS payloads, SQL injection, formula injection, binary files disguised as CSV, oversized files, and more. Run `docs/test-imports/generate-bomb.sh` to create the 1M-row and 25MB stress test files.
-
-### 5. Authentication & Cognito (vs No Auth)
-
-The challenge didn't require authentication. I added it because real e-commerce apps need access control, and it demonstrates security architecture. The app implements JWT-based authentication with three roles. In **development mode** (`AUTH_REQUIRED=false`, default), it auto-authenticates as admin so reviewers don't need to log in. In **Docker/production** (`AUTH_REQUIRED=true`), it requires login and shows three demo accounts on the login page.
-
-**Alternative considered:** No authentication at all — would have saved time but missed the opportunity to demonstrate RBAC, JWT middleware, and Cognito integration.
-
-#### Demo Accounts
+The challenge didn't require auth. I added it because real e-commerce apps need access control. In **dev mode** (`AUTH_REQUIRED=false`), it auto-authenticates as admin so reviewers don't need to log in. In **production** (`AUTH_REQUIRED=true`), it shows demo accounts on the login page.
 
 | Username | Password   | Role   | Permissions                                    |
 |----------|------------|--------|------------------------------------------------|
@@ -145,48 +120,15 @@ The challenge didn't require authentication. I added it because real e-commerce 
 | buyer    | buyer123   | buyer  | Browse products, add to cart, place orders      |
 | reader   | reader123  | reader | Read-only: browse products, view orders        |
 
-#### Permission Matrix
+Architecture: Local JWT (HS256) for demo, AWS Cognito (RS256) when `COGNITO_USER_POOL_ID` is set. Middleware chain: `wrap-auth` → `wrap-require-auth` → `wrap-require-role`.
 
-| Action              | Admin | Buyer | Reader | Anonymous |
-|---------------------|-------|-------|--------|-----------|
-| Browse products     | Yes   | Yes   | Yes    | Yes       |
-| Create/Edit product | Yes   | No    | No     | No        |
-| Delete product      | Yes   | No    | No     | No        |
-| Import CSV          | Yes   | No    | No     | No        |
-| Add to cart         | Yes   | Yes   | No     | No        |
-| Place order         | Yes   | Yes   | No     | No        |
-| View orders         | Yes   | Yes   | Yes    | No        |
+### 6. EC2 + Docker Compose
 
-#### Architecture
+For a demo with a 2-3 week lifespan, EC2 t3.micro (~$8/month) beats ECS Fargate (~$35+/month). The app is containerized, so migration to ECS is straightforward if needed.
 
-- **Local JWT (HS256)**: Used by default for demo — no external dependencies needed
-- **AWS Cognito (RS256)**: When `COGNITO_USER_POOL_ID` is set, switches to Cognito JWKS verification
-- The middleware chain: `wrap-auth` (extract JWT) → `wrap-require-auth` (enforce login) → `wrap-require-role` (enforce permissions)
+### 7. HTTPS + ALB
 
-### 6. deps.edn (vs Leiningen)
-
-- deps.edn is the official Clojure CLI tool, actively maintained by the core team
-- More explicit and composable than Leiningen's convention-heavy approach
-- Modern projects in the Clojure ecosystem have converged on deps.edn
-
-**Alternative considered:** Leiningen — more convention-based and widely documented, but deps.edn is the modern standard.
-
-### 7. EC2 + Docker Compose (vs ECS Fargate)
-
-For a demo with a 2-3 week lifespan:
-- EC2 t3.micro: ~$8/month vs ECS + ALB: ~$35+/month
-- docker-compose is simpler to debug and update
-- The architecture is designed to migrate to ECS if needed (containerized, environment-driven config)
-
-**Alternative considered:** ECS Fargate for fully managed containers — production-grade but overkill for a demo. The app is already containerized, so migration is straightforward.
-
-### 8. HTTPS + ALB (vs Plain HTTP)
-
-- Application Load Balancer with ACM certificate for TLS termination
-- HTTP automatically redirects to HTTPS
-- EC2 security group only accepts traffic from the ALB — not directly from the internet
-
-**Alternative considered:** Plain HTTP on the Elastic IP — functional but doesn't demonstrate understanding of production security requirements.
+Application Load Balancer with ACM certificate for TLS termination. HTTP redirects to HTTPS. EC2 security group only accepts traffic from the ALB.
 
 ## Running Locally
 
@@ -251,22 +193,6 @@ npx tailwindcss -i resources/public/css/input.css -o resources/public/css/output
 - Backend API: `http://localhost:8080/api`
 - Frontend dev server: `http://localhost:3000`
 
-### REPL-Driven Development
-
-The idiomatic Clojure workflow. Start a REPL and control the app from your editor:
-
-```bash
-bb repl        # or: clj -M:dev -m nrepl.cmdline --port 7888
-```
-
-Then connect your editor (Calva, CIDER, Cursive) to port 7888 and evaluate:
-
-```clojure
-(go)           ;; start everything (server, db, migrations)
-(stop)         ;; stop everything
-(reset)        ;; stop, reload changed files, restart — instant feedback
-```
-
 ### Available Tasks
 
 Run `bb tasks` to see all available commands:
@@ -298,42 +224,6 @@ bb test:backend      # backend only
 bb test:frontend     # frontend only
 bb test:coverage     # backend with coverage report
 ```
-
-### Building for Production
-
-```bash
-# Build frontend
-npm run build:frontend
-
-# Build backend uberjar
-npm run build:backend
-
-# Run the jar
-java -jar target/ecommerce-0.1.0-standalone.jar
-```
-
-## Infrastructure Deployment
-
-Infrastructure is managed with Terraform in the `infra/` directory.
-
-```bash
-cd infra
-# Create terraform.tfvars with your values (db_password, key_pair_name, ecr_registry)
-
-terraform init
-terraform plan
-terraform apply
-```
-
-This provisions:
-- VPC with 2 public subnets (multi-AZ)
-- Application Load Balancer with HTTPS (ACM certificate)
-- EC2 instance with Docker pre-installed
-- Elastic IP
-- Security groups (ALB: public HTTP/HTTPS, EC2: ALB-only + SSH)
-- ACM certificate for `ecommerce.appliedprogramming.io`
-- Cognito User Pool with app client
-- ECR repository for Docker images
 
 ## API Endpoints
 
@@ -369,7 +259,7 @@ e-commerce/
 │   │   ├── routes.clj          # Reitit router
 │   │   ├── handlers/           # HTTP handlers
 │   │   ├── services/           # Business logic
-│   │   ├── middleware/         # Auth, etc.
+│   │   ├── middleware/         # Auth, error handling
 │   │   └── db/                 # Database layer
 │   └── cljs/ecommerce/         # Frontend
 │       ├── core.cljs           # SPA entry point

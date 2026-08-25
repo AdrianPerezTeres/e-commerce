@@ -29,3 +29,10 @@
 
 (defn execute-one! [sql-params]
   (jdbc/execute-one! datasource sql-params default-opts))
+
+(defmacro with-transaction [[tx-sym] & body]
+  `(jdbc/with-transaction [~tx-sym datasource]
+     ~@body))
+
+(defn tx-execute-one! [tx sql-params]
+  (jdbc/execute-one! tx sql-params default-opts))
