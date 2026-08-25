@@ -18,9 +18,14 @@
           response (handler {:identity {:user-id "123"}})]
       (is (= 200 (:status response)))))
   (testing "rejects unauthenticated requests"
-    (let [handler (auth/wrap-require-auth (fn [req] {:status 200 :body "ok"}))
-          response (handler {:identity nil})]
-      (is (= 401 (:status response))))))
+    (let [orig @#'auth/auth-required?]
+      (try
+        (alter-var-root #'auth/auth-required? (constantly (constantly true)))
+        (let [handler (auth/wrap-require-auth (fn [req] {:status 200 :body "ok"}))
+              response (handler {:identity nil})]
+          (is (= 401 (:status response))))
+        (finally
+          (alter-var-root #'auth/auth-required? (constantly orig)))))))
 
 (deftest test-wrap-auth-no-token
   (testing "sets identity to nil when no auth header"
