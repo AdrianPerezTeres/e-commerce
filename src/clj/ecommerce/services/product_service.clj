@@ -1,6 +1,7 @@
 (ns ecommerce.services.product-service
   (:require [ecommerce.db.core :as db]
             [ecommerce.services.csv-import :as csv]
+            [ecommerce.services.sanitize :as sanitize]
             [clojure.tools.logging :as log])
   (:import [java.util UUID]))
 
@@ -31,19 +32,20 @@
 
 (defn create-product [data]
   (try
-    (db/execute-one!
-     ["INSERT INTO products (name, sku, description, category, price, stock, weight_kg, created_by, updated_by)
-       VALUES (?, ?, ?, ?, ?::decimal, ?::integer, ?::decimal, ?, ?)
-       RETURNING *"
-      (:name data)
-      (:sku data)
-      (:description data)
-      (:category data)
-      (:price data)
-      (:stock data)
-      (:weight-kg data)
-      (:created-by data)
-      (:updated-by data)])
+    (let [clean (sanitize/sanitize-product data "API create-product")]
+      (db/execute-one!
+       ["INSERT INTO products (name, sku, description, category, price, stock, weight_kg, created_by, updated_by)
+         VALUES (?, ?, ?, ?, ?::decimal, ?::integer, ?::decimal, ?, ?)
+         RETURNING *"
+        (:name clean)
+        (:sku clean)
+        (:description clean)
+        (:category clean)
+        (:price clean)
+        (:stock clean)
+        (:weight-kg clean)
+        (:created-by clean)
+        (:updated-by clean)]))
     (catch Exception e
       (log/error e "Failed to create product")
       {:error (.getMessage e)})))
@@ -53,28 +55,29 @@
     (if-not existing
       {:error "Product not found"}
       (try
-        (db/execute-one!
-         ["UPDATE products
-           SET name = COALESCE(?, name),
-               sku = COALESCE(?, sku),
-               description = COALESCE(?, description),
-               category = COALESCE(?, category),
-               price = COALESCE(?::decimal, price),
-               stock = COALESCE(?::integer, stock),
-               weight_kg = COALESCE(?::decimal, weight_kg),
-               updated_by = ?,
-               updated_at = NOW()
-           WHERE id = ?::uuid
-           RETURNING *"
-          (:name data)
-          (:sku data)
-          (:description data)
-          (:category data)
-          (:price data)
-          (:stock data)
-          (:weight-kg data)
-          (:updated-by data)
-          id])
+        (let [clean (sanitize/sanitize-product data "API update-product")]
+          (db/execute-one!
+           ["UPDATE products
+             SET name = COALESCE(?, name),
+                 sku = COALESCE(?, sku),
+                 description = COALESCE(?, description),
+                 category = COALESCE(?, category),
+                 price = COALESCE(?::decimal, price),
+                 stock = COALESCE(?::integer, stock),
+                 weight_kg = COALESCE(?::decimal, weight_kg),
+                 updated_by = ?,
+                 updated_at = NOW()
+             WHERE id = ?::uuid
+             RETURNING *"
+            (:name clean)
+            (:sku clean)
+            (:description clean)
+            (:category clean)
+            (:price clean)
+            (:stock clean)
+            (:weight-kg clean)
+            (:updated-by clean)
+            id]))
         (catch Exception e
           (log/error e "Failed to update product")
           {:error (.getMessage e)})))))

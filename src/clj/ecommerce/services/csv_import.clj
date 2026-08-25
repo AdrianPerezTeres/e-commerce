@@ -20,27 +20,13 @@
             [clojure.java.io :as io]
             [clojure.string :as str]
             [ecommerce.db.core :as db]
+            [ecommerce.services.sanitize :as sanitize]
             [clojure.tools.logging :as log]))
 
 ;; [7] Row limit — caps import at 100K rows to prevent DB flooding
 (def ^:private max-rows 100000)
-(def ^:private html-pattern #"<[^>]*>")
-(def ^:private sqli-pattern #"(?i)('.*(--)|(;\s*(DROP|DELETE|UPDATE|INSERT|ALTER|EXEC|UNION)))")
-(def ^:private formula-pattern #"^[=+\-@\|]")
-
-;; [1] XSS Defense — strips all HTML/script tags from text fields
-(defn- strip-html [s]
-  (when s
-    (str/replace s html-pattern "")))
-
-;; [4] Formula Injection Defense — strips leading =, +, -, @, | that trigger Excel/Sheets execution
-(defn- strip-formula-prefix [s]
-  (when s
-    (str/replace s formula-pattern "")))
 
 ;; [2] Threat Reporting — scans raw values before sanitization to log detected attacks
-;; I added the extra logging to confirm detected threats, I am assuming more CSV files will
-;; be processed and this will help to identify if we catch them all
 (defn- detect-threats [raw-values line-num]
   (let [fields  ["name" "sku" "description" "category" "price" "stock" "weight_kg"]
         threats (reduce
@@ -48,11 +34,11 @@
                    (if (str/blank? value)
                      threats
                      (cond-> threats
-                       (re-find html-pattern value)
+                       (re-find sanitize/html-pattern value)
                        (conj {:line line-num :field field :type "XSS" :detail "HTML/script tags detected and stripped"})
-                       (re-find sqli-pattern value)
+                       (re-find sanitize/sqli-pattern value)
                        (conj {:line line-num :field field :type "SQL Injection" :detail "SQL injection pattern detected and neutralized"})
-                       (re-find formula-pattern value)
+                       (re-find sanitize/formula-pattern value)
                        (conj {:line line-num :field field :type "Formula Injection" :detail "Spreadsheet formula prefix detected and stripped"}))))
                  []
                  (map vector fields raw-values))]
@@ -95,9 +81,9 @@
       {:valid true  :line line-num :data row})))
 
 (defn- parse-row [[name sku description category price stock weight-kg]]
-  {:name        (-> (when-not (str/blank? name) (str/trim name)) strip-html strip-formula-prefix)
+  {:name        (-> (when-not (str/blank? name) (str/trim name)) sanitize/sanitize-text)
    :sku         (when-not (str/blank? sku) (str/trim sku))
-   :description (-> (when-not (str/blank? description) (str/trim description)) strip-html strip-formula-prefix)
+   :description (-> (when-not (str/blank? description) (str/trim description)) sanitize/sanitize-text)
    :category    (when-not (str/blank? category) (str/trim category))
    :price       (parse-price price)
    :stock       (parse-stock stock)
