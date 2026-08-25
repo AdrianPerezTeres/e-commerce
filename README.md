@@ -41,7 +41,7 @@ A full-stack e-commerce application built with Clojure (backend) and ClojureScri
 | Styling        | Tailwind CSS                        | Utility-first, rapid prototyping, consistent design          |
 | Containers     | Docker multi-stage build             | Minimal production image (JRE Alpine)                        |
 | IaC            | Terraform                           | Declarative, reproducible infrastructure                     |
-| CI/CD          | GitHub Actions                      | Native GitHub integration, test + build + deploy pipeline    |
+| CI/CD          | Azure DevOps Pipelines              | Parallel test/build stages, Terraform apply, auto-deploy     |
 | Testing        | Kaocha + Cloverage                  | Clojure test runner with coverage reporting                  |
 
 ## Key Design Decisions
@@ -65,17 +65,28 @@ Chose a REST API backend with a ClojureScript SPA over server-rendered templates
 
 ### 3. CSV Import Validation Pipeline
 
-The provided CSV contains intentional data quality challenges. Our import pipeline handles:
+The provided CSV contains intentional data quality challenges and security attack vectors. Our import pipeline implements 8 numbered defenses (see `csv_import.clj` and `handlers/products.clj`):
 
-- **XSS injection** (`<script>` tags) — stripped via HTML tag removal. On the frontend, React/Reagent renders content safely by default (no `dangerouslySetInnerHTML`)
-- **SQL injection** (`DROP TABLE`) — parameterized queries (next.jdbc) prevent SQL injection at the driver level. We never interpolate user input into SQL strings
+**Security threats detected and neutralized:**
+1. **XSS injection** (`<script>` tags) — stripped via HTML tag regex. React/Reagent auto-escapes on render as second layer
+2. **Threat reporting** — scans raw values before sanitization, logs every detected attack with type, line, and field
+3. **SQL injection** (`DROP TABLE`) — parameterized queries (next.jdbc) prevent injection at the driver level
+4. **Formula injection** (`=`, `+`, `-`, `@`, `|` prefixes) — stripped to prevent Excel/Sheets execution if data is exported
+
+**Additional defenses (handler level):**
+5. **File type validation** — only `.csv` files accepted, rejects EXE/binary/other uploads
+6. **File size limit** — 20MB max to prevent memory exhaustion
+7. **Row limit** — 100,000 rows max to prevent DB flooding
+8. **Nil file check** — rejects requests with no file uploaded
+
+**Data quality handling:**
 - **Invalid prices** (`"free"`, `"$29.99"`) — coercion pipeline strips currency symbols, rejects non-numeric values
 - **Negative stock** — rejected with error, as negative stock is logically invalid
 - **Duplicate SKUs** — `ON CONFLICT (sku) DO NOTHING`, first occurrence wins, duplicates reported
 - **Empty rows** — detected and skipped silently
 - **Missing required fields** — row skipped with descriptive error per field
 
-The import returns a detailed report: imported count, skipped count, duplicate details, and per-row errors with line numbers.
+The import returns a detailed report: imported count, skipped count, duplicate details, per-row errors with line numbers, and a **"Threats Blocked"** panel showing every detected attack with color-coded badges.
 
 ### 4. Authentication & Role-Based Access Control
 
@@ -148,8 +159,8 @@ bb dev         # starts Postgres, backend nREPL, shadow-cljs, and Tailwind in pa
 ```
 
 This starts everything you need:
-- PostgreSQL via Docker (port 5432)
-- Backend with nREPL on port 7888 (connect your editor here)
+- PostgreSQL via Docker (port 5433, avoids conflict with local Postgres)
+- Backend on port 8080
 - shadow-cljs with hot-reload on port 3000
 - Tailwind CSS watcher
 
@@ -250,8 +261,7 @@ Infrastructure is managed with Terraform in the `infra/` directory.
 
 ```bash
 cd infra
-cp example.tfvars terraform.tfvars
-# Edit terraform.tfvars with your values
+# Create terraform.tfvars with your values (db_password, key_pair_name, ecr_registry)
 
 terraform init
 terraform plan
@@ -315,7 +325,7 @@ e-commerce/
 │   └── public/                 # Static assets
 ├── test/clj/                   # Backend tests
 ├── infra/                      # Terraform
-├── .github/workflows/          # CI/CD
+├── pipelines/                  # Azure DevOps CI/CD
 ├── deps.edn                    # Backend dependencies
 ├── shadow-cljs.edn             # Frontend build
 ├── docker-compose.yml

@@ -1,5 +1,6 @@
 (ns ecommerce.handlers.products
-  (:require [ecommerce.services.product-service :as service]))
+  (:require [ecommerce.services.product-service :as service]
+            [clojure.string :as str]))
 
 (defn list-products [request]
   (let [params (:params request)
@@ -37,8 +38,26 @@
       {:status 404 :body result}
       {:status 204 :body nil})))
 
+;; [6] File size limit — 20MB max to prevent memory exhaustion
+(def ^:private max-file-size (* 20 1024 1024))
+;; [5] File type validation — only .csv files accepted
+(def ^:private allowed-extensions #{".csv"})
+
 (defn import-csv [request]
-  (let [file (get-in request [:multipart-params "file"])
-        result (service/import-csv (:tempfile file))]
-    {:status 200
-     :body   result}))
+  (let [file (get-in request [:multipart-params "file"])]
+    (cond
+      ;; [8] Nil file check
+      (or (nil? file) (nil? (:tempfile file)))
+      {:status 400 :body {:error "No file uploaded"}}
+
+      ;; [5] File type validation
+      (not (some #(str/ends-with? (str/lower-case (or (:filename file) "")) %) allowed-extensions))
+      {:status 400 :body {:error "Invalid file type. Only .csv files are accepted"}}
+
+      ;; [6] File size limit
+      (> (.length (:tempfile file)) max-file-size)
+      {:status 400 :body {:error "File too large. Maximum size is 20MB"}}
+
+      :else
+      (let [result (service/import-csv (:tempfile file))]
+        {:status 200 :body result}))))

@@ -50,9 +50,11 @@
            ^{:key idx}
            [:div {:class "flex items-center gap-2 text-sm"}
             [:span {:class (str "inline-block px-2 py-0.5 rounded text-xs font-medium "
-                                (if (= (:type threat) "XSS")
-                                  "bg-red-100 text-red-700"
-                                  "bg-orange-100 text-orange-700"))}
+                                (case (:type threat)
+                                  "XSS"                "bg-red-100 text-red-700"
+                                  "SQL Injection"      "bg-orange-100 text-orange-700"
+                                  "Formula Injection"  "bg-yellow-100 text-yellow-700"
+                                  "bg-gray-100 text-gray-700"))}
              (:type threat)]
             [:span {:class "text-gray-500"}
              (str "Line " (:line threat) ", " (:field threat) " — " (:detail threat))]])]])]))

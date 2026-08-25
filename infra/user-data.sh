@@ -26,7 +26,7 @@ ECRLOGIN
 chmod +x /opt/ecommerce/ecr-login.sh
 echo "0 */6 * * * /opt/ecommerce/ecr-login.sh" | crontab -
 
-/opt/ecommerce/ecr-login.sh
+/opt/ecommerce/ecr-login.sh || true
 
 cat > /opt/ecommerce/.env <<EOF
 DB_PASSWORD=${db_password}

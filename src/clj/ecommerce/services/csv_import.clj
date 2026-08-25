@@ -1,18 +1,18 @@
 ;; CSV Import — Security & Sanitization
 ;;
-;; The provided CSV contains intentional attack vectors:
+;; Reviewing the CSV file provided I found 3 diffferent security attacks:
 ;;
 ;; 1. XSS (Cross-Site Scripting) — Line 20: <script>alert('xss')</script> as product name
-;;    Defense: strip-html (line 28) removes all HTML tags via regex before storage.
-;;    Second layer: React/Reagent auto-escapes text on render.
+;; 2. Threat Reporting — detect-threats scans raw values BEFORE sanitization
+;; 3. SQL Injection — Line 29: Robert'); DROP TABLE products;-- as product name
+;; 4. Formula Injection — strips =, +, -, @, | prefixes that trigger Excel/Sheets execution
 ;;
-;; 2. SQL Injection — Line 29: Robert'); DROP TABLE products;-- as product name
-;;    Defense: insert-product! (line 93) uses parameterized queries (?), never string
-;;    concatenation. The malicious string is stored as harmless literal text.
+;; Additional defenses (handler level — see handlers/products.clj):
+;; 5. File type validation: only .csv files accepted
+;; 6. File size limit: 20MB max to prevent memory exhaustion
+;; 7. Row limit: 100,000 rows max to prevent DB flooding
+;; 8. Nil file check: rejects requests with no file uploaded
 ;;
-;; 3. Threat Reporting — detect-threats (line 34) scans raw values BEFORE sanitization
-;;    and logs each detected XSS/SQLi attempt. Results are returned to the UI with
-;;    type, line number, field, and description of action taken.
 
 (ns ecommerce.services.csv-import
   (:require [clojure.data.csv :as csv]
@@ -21,15 +21,25 @@
             [ecommerce.db.core :as db]
             [clojure.tools.logging :as log]))
 
+;; [7] Row limit — caps import at 100K rows to prevent DB flooding
+(def ^:private max-rows 100000)
 (def ^:private html-pattern #"<[^>]*>")
 (def ^:private sqli-pattern #"(?i)('.*(--)|(;\s*(DROP|DELETE|UPDATE|INSERT|ALTER|EXEC|UNION)))")
+(def ^:private formula-pattern #"^[=+\-@\|]")
 
 ;; [1] XSS Defense — strips all HTML/script tags from text fields
 (defn- strip-html [s]
   (when s
     (str/replace s html-pattern "")))
 
-;; [3] Threat Reporting — scans raw values before sanitization to log detected attacks
+;; [4] Formula Injection Defense — strips leading =, +, -, @, | that trigger Excel/Sheets execution
+(defn- strip-formula-prefix [s]
+  (when s
+    (str/replace s formula-pattern "")))
+
+;; [2] Threat Reporting — scans raw values before sanitization to log detected attacks
+;; I added the extra logging to confirm detected threats, I am assuming more CSV files will
+;; be processed and this will help to identify if we catch them all
 (defn- detect-threats [raw-values line-num]
   (let [fields ["name" "sku" "description" "category" "price" "stock" "weight_kg"]]
     (reduce
@@ -40,7 +50,9 @@
            (re-find html-pattern value)
            (conj {:line line-num :field field :type "XSS" :detail "HTML/script tags detected and stripped"})
            (re-find sqli-pattern value)
-           (conj {:line line-num :field field :type "SQL Injection" :detail "SQL injection pattern detected and neutralized"}))))
+           (conj {:line line-num :field field :type "SQL Injection" :detail "SQL injection pattern detected and neutralized"})
+           (re-find formula-pattern value)
+           (conj {:line line-num :field field :type "Formula Injection" :detail "Spreadsheet formula prefix detected and stripped"}))))
      []
      (map vector fields raw-values))))
 
@@ -81,15 +93,16 @@
       {:valid true  :line line-num :data row})))
 
 (defn- parse-row [[name sku description category price stock weight-kg]]
-  {:name        (strip-html (when-not (str/blank? name) (str/trim name)))
+  {:name        (-> (when-not (str/blank? name) (str/trim name)) strip-html strip-formula-prefix)
    :sku         (when-not (str/blank? sku) (str/trim sku))
-   :description (strip-html (when-not (str/blank? description) (str/trim description)))
+   :description (-> (when-not (str/blank? description) (str/trim description)) strip-html strip-formula-prefix)
    :category    (when-not (str/blank? category) (str/trim category))
    :price       (parse-price price)
    :stock       (parse-stock stock)
    :weight-kg   (parse-weight weight-kg)})
 
-;; [2] SQL Injection Defense — parameterized queries prevent injection via ? placeholders
+;; [3] SQL Injection Defense — parameterized queries prevent injection via ? placeholders
+;; Simple but effective
 (defn- insert-product! [{:keys [name sku description category price stock weight-kg]}]
   (db/execute-one!
    ["INSERT INTO products (name, sku, description, category, price, stock, weight_kg)
@@ -102,7 +115,7 @@
   (with-open [reader (io/reader file)]
     (let [rows       (csv/read-csv reader)
           header     (first rows)
-          data-rows  (rest rows)
+          data-rows  (take max-rows (rest rows))
           results    (reduce
                       (fn [acc [idx row]]
                         (if (every? str/blank? row)
