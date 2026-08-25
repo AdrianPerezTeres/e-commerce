@@ -9,10 +9,24 @@ terraform {
   }
 
   backend "s3" {
-    bucket = "ecommerce-tfstate-953761113604"
-    key    = "ecommerce/terraform.tfstate"
-    region = "us-east-1"
+    bucket         = "ecommerce-tfstate-953761113604"
+    key            = "ecommerce/terraform.tfstate"
+    region         = "us-east-1"
+    dynamodb_table = "ecommerce-tfstate-lock"
   }
+}
+
+resource "aws_dynamodb_table" "tfstate_lock" {
+  name         = "ecommerce-tfstate-lock"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "LockID"
+
+  attribute {
+    name = "LockID"
+    type = "S"
+  }
+
+  tags = { Name = "ecommerce-tfstate-lock" }
 }
 
 provider "aws" {

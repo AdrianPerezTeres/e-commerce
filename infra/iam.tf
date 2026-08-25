@@ -37,6 +37,20 @@ resource "aws_iam_role_policy_attachment" "ssm" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
+resource "aws_iam_role_policy" "ssm_params" {
+  name = "ssm-read-params"
+  role = aws_iam_role.app.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = "ssm:GetParameter"
+      Resource = aws_ssm_parameter.db_password.arn
+    }]
+  })
+}
+
 resource "aws_iam_instance_profile" "app" {
   name = "ecommerce-ec2-profile"
   role = aws_iam_role.app.name
@@ -102,6 +116,16 @@ resource "aws_iam_user_policy" "ci" {
           "arn:aws:s3:::ecommerce-tfstate-953761113604",
           "arn:aws:s3:::ecommerce-tfstate-953761113604/*"
         ]
+      },
+      {
+        Sid    = "TerraformStateLock"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:DeleteItem"
+        ]
+        Resource = aws_dynamodb_table.tfstate_lock.arn
       },
       {
         Sid    = "TerraformManage"

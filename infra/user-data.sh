@@ -28,8 +28,15 @@ echo "0 */6 * * * /opt/ecommerce/ecr-login.sh" | crontab -
 
 /opt/ecommerce/ecr-login.sh || true
 
+DB_PASSWORD=$(aws ssm get-parameter \
+  --name "${ssm_db_password_name}" \
+  --with-decryption \
+  --region ${aws_region} \
+  --query "Parameter.Value" \
+  --output text)
+
 cat > /opt/ecommerce/.env <<EOF
-DB_PASSWORD=${db_password}
+DB_PASSWORD=$DB_PASSWORD
 DB_USER=ecommerce
 DB_NAME=ecommerce
 DB_HOST=db
