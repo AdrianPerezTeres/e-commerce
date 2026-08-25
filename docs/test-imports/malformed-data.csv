@@ -1,0 +1,15 @@
+name,sku,description,category,price,stock,weight_kg
+,MAL-001,Missing name field,Electronics,19.99,10,0.5
+No SKU Product,,Description here,Clothing,29.99,20,0.3
+No Price,MAL-003,Missing price,Books,,15,0.4
+Negative Price,MAL-004,Should reject negative,Food & Beverage,-9.99,10,0.2
+Negative Stock,MAL-005,Should reject negative stock,Accessories,24.99,-5,0.1
+Bad Price Format,MAL-006,Price is text,Tools,not_a_price,10,0.5
+Bad Stock Format,MAL-007,Stock is decimal,Sports,19.99,3.5,0.3
+,,,,,
+,,,,,,
+All Empty Fields,,,,,,
+Extra Columns,MAL-010,Has extra cols,Electronics,9.99,5,0.2,extra1,extra2
+Huge Price,MAL-011,Absurdly high price,Books,99999999999999.99,1,0.1
+Zero Price,MAL-012,Free product,Gifts,0,100,0.05
+Zero Stock,MAL-013,Out of stock item,Kitchen,15.99,0,0.8

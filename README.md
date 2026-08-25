@@ -88,6 +88,8 @@ The provided CSV contains intentional data quality challenges and security attac
 
 The import returns a detailed report: imported count, skipped count, duplicate details, per-row errors with line numbers, and a **"Threats Blocked"** panel showing every detected attack with color-coded badges.
 
+**Test files:** See `docs/test-imports/` for 13 test CSVs covering all 9 defenses — XSS payloads, SQL injection, formula injection, binary files disguised as CSV, oversized files, and more. Run `docs/test-imports/generate-bomb.sh` to create the 1M-row and 25MB stress test files.
+
 ### 4. Authentication & Role-Based Access Control
 
 The app implements JWT-based authentication with three roles. In **development mode** (`AUTH_REQUIRED=false`, default), it auto-authenticates as admin so reviewers don't need to log in. In **Docker/production** (`AUTH_REQUIRED=true`), it requires login and shows three demo accounts on the login page.
@@ -269,11 +271,14 @@ terraform apply
 ```
 
 This provisions:
-- VPC with public subnet
+- VPC with 2 public subnets (multi-AZ)
+- Application Load Balancer with HTTPS (ACM certificate)
 - EC2 instance with Docker pre-installed
 - Elastic IP
-- Security groups (HTTP/HTTPS/SSH)
+- Security groups (ALB: public HTTP/HTTPS, EC2: ALB-only + SSH)
+- ACM certificate for `ecommerce.appliedprogramming.io`
 - Cognito User Pool with app client
+- ECR repository for Docker images
 
 ## API Endpoints
 

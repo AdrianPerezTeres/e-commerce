@@ -21,9 +21,11 @@ resource "aws_instance" "app" {
   vpc_security_group_ids = [aws_security_group.app.id]
 
   user_data = templatefile("${path.module}/user-data.sh", {
-    db_password  = var.db_password
-    ecr_registry = var.ecr_registry
-    aws_region   = var.aws_region
+    db_password       = var.db_password
+    ecr_registry      = var.ecr_registry
+    aws_region        = var.aws_region
+    cognito_pool_id   = aws_cognito_user_pool.main.id
+    cognito_client_id = aws_cognito_user_pool_client.app.id
   })
 
   iam_instance_profile = aws_iam_instance_profile.app.name

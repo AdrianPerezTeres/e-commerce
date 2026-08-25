@@ -85,5 +85,10 @@
       {:deleted true}
       {:error "Product not found"})))
 
+(defn delete-all-products []
+  (let [result (db/execute-one! ["SELECT count(*) AS total FROM products"])]
+    (db/execute! ["DELETE FROM products"])
+    {:deleted (or (:total result) 0)}))
+
 (defn import-csv [file]
   (csv/process-csv file))

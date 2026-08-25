@@ -1,0 +1,7 @@
+name,sku,description,category,price,stock,weight_kg
+Product Alpha,DUP-001,First occurrence,Electronics,19.99,10,0.5
+Product Beta,DUP-002,Unique product,Clothing,29.99,20,0.3
+Product Alpha Copy,DUP-001,Duplicate SKU - should be skipped,Electronics,24.99,15,0.5
+Product Gamma,DUP-003,Another unique,Books,14.99,25,0.4
+Product Beta Copy,DUP-002,Another duplicate SKU,Clothing,34.99,30,0.3
+Product Delta,DUP-001,Triple duplicate,Electronics,39.99,5,0.5

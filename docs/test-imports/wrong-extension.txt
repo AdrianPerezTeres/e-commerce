@@ -1,0 +1,2 @@
+name,sku,description,category,price,stock,weight_kg
+Valid Content,TXT-001,This is valid CSV content but with .txt extension,Electronics,19.99,10,0.5

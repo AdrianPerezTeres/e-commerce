@@ -71,7 +71,7 @@
 
 (defn- verify-token [token]
   (if (cognito-configured?)
-    (verify-cognito-token token)
+    (or (verify-cognito-token token) (verify-local-token token))
     (verify-local-token token)))
 
 (defn wrap-auth

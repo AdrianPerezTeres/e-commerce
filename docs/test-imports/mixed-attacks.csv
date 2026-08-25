@@ -1,0 +1,7 @@
+name,sku,description,category,price,stock,weight_kg
+<script>alert('xss')</script>,MIX-001,'; DROP TABLE products;--,Electronics,19.99,10,0.5
+=cmd|'/C calc'!A0,MIX-002,<img src=x onerror=alert(1)>,Clothing,29.99,20,0.3
+Normal Product,MIX-003,Clean description,Books,14.99,15,0.4
+<b>Bold Attack</b>,MIX-004,=HYPERLINK("http://evil.com"),Accessories,-5.00,10,0.2
+'; DELETE FROM users;--,MIX-005,+cmd|'/C net user',Tools,0,,-0.5
+@SUM(1+1)*cmd|'/C calc'!A0,MIX-006,<svg/onload=alert('xss')>,Health,abc,xyz,not_a_number

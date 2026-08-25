@@ -1,6 +1,7 @@
 (ns ecommerce.handlers.products
   (:require [ecommerce.services.product-service :as service]
-            [clojure.string :as str]))
+            [clojure.string :as str]
+            [clojure.java.io :as io]))
 
 (defn list-products [request]
   (let [params (:params request)
@@ -43,6 +44,15 @@
 ;; [5] File type validation — only .csv files accepted
 (def ^:private allowed-extensions #{".csv"})
 
+;; [9] Magic byte validation — detects binary files disguised as .csv (renamed EXE, virus, etc.)
+(defn- text-file? [file]
+  (with-open [is (io/input-stream file)]
+    (let [buf (byte-array 512)
+          n   (.read is buf)]
+      (when (pos? n)
+        (let [bytes (take n (seq buf))]
+          (every? #(or (<= 32 % 126) (#{9 10 13} %)) bytes))))))
+
 (defn import-csv [request]
   (let [file (get-in request [:multipart-params "file"])]
     (cond
@@ -58,6 +68,14 @@
       (> (.length (:tempfile file)) max-file-size)
       {:status 400 :body {:error "File too large. Maximum size is 20MB"}}
 
+      ;; [9] Magic byte validation — reject binary files
+      (not (text-file? (:tempfile file)))
+      {:status 400 :body {:error "Invalid file content. File appears to be binary, not CSV text"}}
+
       :else
       (let [result (service/import-csv (:tempfile file))]
         {:status 200 :body result}))))
+
+(defn delete-all-products [_request]
+  (let [result (service/delete-all-products)]
+    {:status 200 :body result}))

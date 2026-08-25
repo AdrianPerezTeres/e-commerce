@@ -12,6 +12,7 @@
 ;; 6. File size limit: 20MB max to prevent memory exhaustion
 ;; 7. Row limit: 100,000 rows max to prevent DB flooding
 ;; 8. Nil file check: rejects requests with no file uploaded
+;; 9. Magic byte validation: reads first 512 bytes to detect binary files disguised as .csv
 ;;
 
 (ns ecommerce.services.csv-import
@@ -41,20 +42,21 @@
 ;; I added the extra logging to confirm detected threats, I am assuming more CSV files will
 ;; be processed and this will help to identify if we catch them all
 (defn- detect-threats [raw-values line-num]
-  (let [fields ["name" "sku" "description" "category" "price" "stock" "weight_kg"]]
-    (reduce
-     (fn [threats [field value]]
-       (if (str/blank? value)
-         threats
-         (cond-> threats
-           (re-find html-pattern value)
-           (conj {:line line-num :field field :type "XSS" :detail "HTML/script tags detected and stripped"})
-           (re-find sqli-pattern value)
-           (conj {:line line-num :field field :type "SQL Injection" :detail "SQL injection pattern detected and neutralized"})
-           (re-find formula-pattern value)
-           (conj {:line line-num :field field :type "Formula Injection" :detail "Spreadsheet formula prefix detected and stripped"}))))
-     []
-     (map vector fields raw-values))))
+  (let [fields  ["name" "sku" "description" "category" "price" "stock" "weight_kg"]
+        threats (reduce
+                 (fn [threats [field value]]
+                   (if (str/blank? value)
+                     threats
+                     (cond-> threats
+                       (re-find html-pattern value)
+                       (conj {:line line-num :field field :type "XSS" :detail "HTML/script tags detected and stripped"})
+                       (re-find sqli-pattern value)
+                       (conj {:line line-num :field field :type "SQL Injection" :detail "SQL injection pattern detected and neutralized"})
+                       (re-find formula-pattern value)
+                       (conj {:line line-num :field field :type "Formula Injection" :detail "Spreadsheet formula prefix detected and stripped"}))))
+                 []
+                 (map vector fields raw-values))]
+    threats))
 
 (defn- parse-price [s]
   (when-not (str/blank? s)
@@ -147,5 +149,15 @@
                        :errors     []
                        :threats    []}
                       (map-indexed vector data-rows))]
-      (log/info "CSV import complete:" results)
+      (let [threat-counts (when (seq (:threats results))
+                            (->> (:threats results)
+                                 (group-by :type)
+                                 (map (fn [[t v]] (str t ": " (count v))))
+                                 (str/join ", ")))]
+        (log/info (str "CSV import complete — "
+                       (:imported results) " imported, "
+                       (:skipped results) " skipped, "
+                       (count (:duplicates results)) " duplicates, "
+                       (count (:errors results)) " errors"
+                       (when threat-counts (str ", threats [" threat-counts "]")))))
       results)))

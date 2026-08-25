@@ -1,0 +1,7 @@
+name,sku,description,category,price,stock,weight_kg
+Café Espresso,UNI-001,Máquina de café premium,Food & Beverage,199.99,10,5.0
+日本語の製品,UNI-002,テスト説明,Electronics,49.99,20,0.5
+Ñoño's Widget,UNI-003,Descripción con acentos: á é í ó ú,Accessories,15.00,30,0.2
+Ürümqi Product,UNI-004,Ελληνικά description test,Clothing,25.99,15,0.4
+Emoji Product 🎉,UNI-005,Contains emoji 🚀💻🛒,Gifts,9.99,50,0.1
+Null\x00Byte,UNI-006,Contains null byte attempt,Tools,19.99,10,0.3

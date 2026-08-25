@@ -31,6 +31,9 @@
                        :middleware [wrap-multipart-params
                                    wrap-require-auth
                                    #(wrap-require-role % "admin")]}}]
+    ["/all" {:delete {:handler    products/delete-all-products
+                      :middleware [wrap-require-auth
+                                  #(wrap-require-role % "admin")]}}]
     ["/:id" {:get    products/get-product
              :put    {:handler    products/update-product
                       :middleware [wrap-require-auth

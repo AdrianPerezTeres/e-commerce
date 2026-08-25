@@ -71,14 +71,32 @@
    {}))
 
 (rf/reg-event-fx
+ :delete-all-products
+ (fn [_ _]
+   (http/delete! {:uri        "/api/products/all"
+                  :on-success (fn [result]
+                                (rf/dispatch [:set-notification {:type :success
+                                                                 :message (str "Deleted " (:deleted result) " products")}])
+                                (rf/dispatch [:fetch-products]))
+                  :on-failure #(rf/dispatch [:set-notification {:type :error :message "Failed to delete products"}])})
+   {}))
+
+(rf/reg-event-fx
  :import-csv
  (fn [{:keys [db]} [_ form-data]]
    (http/post! {:uri        "/api/products/import"
                 :body       form-data
                 :multipart? true
                 :on-success #(rf/dispatch [:import-complete %])
-                :on-failure #(rf/dispatch [:set-notification {:type :error :message "Import failed"}])})
+                :on-failure (fn [err]
+                              (rf/dispatch [:set-notification {:type :error :message (or (:error err) "Import failed")}])
+                              (rf/dispatch [:import-loading-done]))})
    {:db (assoc-in db [:import :loading] true)}))
+
+(rf/reg-event-db
+ :import-loading-done
+ (fn [db _]
+   (assoc-in db [:import :loading] false)))
 
 (rf/reg-event-db
  :import-complete

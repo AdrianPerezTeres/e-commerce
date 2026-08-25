@@ -35,6 +35,10 @@ DB_NAME=ecommerce
 DB_HOST=db
 DB_PORT=5432
 PORT=8080
+AUTH_REQUIRED=true
+COGNITO_USER_POOL_ID=${cognito_pool_id}
+COGNITO_CLIENT_ID=${cognito_client_id}
+AWS_REGION=${aws_region}
 EOF
 
 cat > /opt/ecommerce/docker-compose.yml <<COMPOSE

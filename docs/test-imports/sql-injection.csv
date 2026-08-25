@@ -1,0 +1,7 @@
+name,sku,description,category,price,stock,weight_kg
+Robert'); DROP TABLE products;--,SQLI-001,Normal description,Electronics,19.99,10,0.5
+Normal Product,SQLI-002,'; DELETE FROM orders;--,Clothing,29.99,20,0.3
+' OR '1'='1,SQLI-003,Always true condition,Books,9.99,5,0.2
+'; UPDATE products SET price=0;--,SQLI-004,Price manipulation attempt,Food & Beverage,14.99,15,0.4
+' UNION SELECT username, password FROM users;--,SQLI-005,Data exfiltration attempt,Accessories,24.99,8,0.1
+'; EXEC xp_cmdshell('dir');--,SQLI-006,OS command injection,Tools,39.99,12,0.6

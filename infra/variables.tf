@@ -43,3 +43,9 @@ variable "ecr_registry" {
   description = "ECR registry URL (e.g., 123456789.dkr.ecr.us-east-1.amazonaws.com)"
   type        = string
 }
+
+variable "domain_name" {
+  description = "Domain name for the application (HTTPS)"
+  type        = string
+  default     = "ecommerce.appliedprogramming.io"
+}

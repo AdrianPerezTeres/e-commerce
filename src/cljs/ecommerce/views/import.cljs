@@ -2,6 +2,29 @@
   (:require [re-frame.core :as rf]
             [reagent.core :as r]))
 
+(defn- confirm-modal [show? on-confirm on-cancel]
+  (when @show?
+    [:div {:class "fixed inset-0 z-50 flex items-center justify-center"}
+     ;; backdrop
+     [:div {:class "absolute inset-0 bg-black/40 backdrop-blur-sm"
+            :on-click on-cancel}]
+     ;; dialog
+     [:div {:class "relative bg-white rounded-xl shadow-xl border border-gray-200 p-6 max-w-md w-full mx-4"}
+      [:div {:class "flex items-center gap-3 mb-4"}
+       [:div {:class "flex-shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center"}
+        [:svg {:class "w-5 h-5 text-red-600" :fill "none" :viewBox "0 0 24 24" :stroke-width "2" :stroke "currentColor"}
+         [:path {:stroke-linecap "round" :stroke-linejoin "round" :d "M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"}]]]
+       [:h3 {:class "text-lg font-semibold text-gray-900"} "Delete All Products"]]
+      [:p {:class "text-sm text-gray-500 mb-6"}
+       "This will permanently delete all products from the database. You can re-import them from CSV after."]
+      [:div {:class "flex justify-end gap-3"}
+       [:button {:class    "px-5 py-2 rounded-full font-medium text-gray-700 border border-gray-300 hover:bg-gray-50 transition-colors"
+                 :on-click on-cancel}
+        "Cancel"]
+       [:button {:class    "px-5 py-2 rounded-full font-medium bg-red-600 text-white hover:bg-red-700 transition-colors shadow-sm"
+                 :on-click on-confirm}
+        "Delete All"]]]]))
+
 (defn import-result-panel [result]
   (when result
     [:div {:class "mt-6 bg-white rounded-xl border border-gray-200 p-6 shadow-sm"}
@@ -25,12 +48,9 @@
 
      (when (seq (:duplicates result))
        [:div {:class "mb-4"}
-        [:h4 {:class "text-sm font-medium text-orange-600 mb-2"} "Duplicate SKUs:"]
-        [:div {:class "space-y-1"}
-         (for [[idx dup] (map-indexed vector (:duplicates result))]
-           ^{:key idx}
-           [:p {:class "text-sm text-gray-500"}
-            (str "Line " (:line dup) ": " (:sku dup) " - " (:reason dup))])]])
+        [:h4 {:class "text-sm font-medium text-orange-600 mb-2"} "Duplicates:"]
+        [:p {:class "text-sm text-gray-500"}
+         (str (count (:duplicates result)) " duplicate SKUs were skipped (already in database)")]])
 
      (when (seq (:errors result))
        [:div {:class "mb-4"}
@@ -60,7 +80,8 @@
              (str "Line " (:line threat) ", " (:field threat) " — " (:detail threat))]])]])]))
 
 (defn import-page []
-  (let [file-ref (r/atom nil)]
+  (let [file-ref    (r/atom nil)
+        show-modal? (r/atom false)]
     (fn []
       (let [role @(rf/subscribe [:auth-role])]
         (if (not= role "admin")
@@ -89,5 +110,13 @@
                                        (let [form-data (js/FormData.)]
                                          (.append form-data "file" @file-ref)
                                          (rf/dispatch [:import-csv form-data]))))}
-                (if loading "Importing..." "Import")]]]
+                (if loading "Importing..." "Import")]
+               [:button {:class    "px-6 py-2 rounded-full font-medium transition-colors shadow-sm border border-red-300 text-red-600 hover:bg-red-50"
+                         :on-click #(reset! show-modal? true)}
+                "Clear All Products"]]]
+             [confirm-modal show-modal?
+              (fn []
+                (reset! show-modal? false)
+                (rf/dispatch [:delete-all-products]))
+              #(reset! show-modal? false)]
              [import-result-panel result]]))))))

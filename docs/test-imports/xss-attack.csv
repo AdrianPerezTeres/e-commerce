@@ -1,0 +1,7 @@
+name,sku,description,category,price,stock,weight_kg
+<script>alert('xss')</script>,XSS-001,Normal description,Electronics,19.99,10,0.5
+Normal Product,XSS-002,<img src=x onerror=alert('xss')>,Electronics,29.99,20,0.3
+<b onmouseover=alert('xss')>Hover Me</b>,XSS-003,Safe desc,Clothing,9.99,5,0.2
+Click Here,XSS-004,<iframe src="javascript:alert('xss')"></iframe>,Books,14.99,15,0.4
+<svg onload=alert('xss')>,XSS-005,Test product,Accessories,24.99,8,0.1
+Nice Product,XSS-006,<div style="background:url(javascript:alert('xss'))">styled</div>,Home & Office,39.99,12,0.6
