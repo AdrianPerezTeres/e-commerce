@@ -8,8 +8,13 @@
   {:name "" :sku "" :description "" :category "" :price "" :stock "" :weight-kg ""})
 
 (defn product-form [initial on-submit submit-label]
-  (let [form (r/atom (or initial empty-form))]
-    (fn [_ _ _]
+  (let [form    (r/atom (or initial empty-form))
+        prev-id (r/atom (:id initial))]
+    (fn [initial _ _]
+      (let [new-id (:id initial)]
+        (when (not= new-id @prev-id)
+          (reset! prev-id new-id)
+          (reset! form (or initial empty-form))))
       [:div {:class "bg-white rounded-xl border border-gray-200 p-6 mb-6 shadow-sm"}
        [:div {:class "grid grid-cols-1 md:grid-cols-2 gap-4"}
         (doall

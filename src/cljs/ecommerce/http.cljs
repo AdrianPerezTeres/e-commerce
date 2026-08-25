@@ -1,10 +1,11 @@
 (ns ecommerce.http
-  (:require [re-frame.core :as rf]))
+  (:require [re-frame.core :as rf]
+            [re-frame.db :as rfdb]))
 
 (def api-base "")
 
 (defn- request [{:keys [method uri body on-success on-failure multipart?]}]
-  (let [token @(rf/subscribe [:auth-token])
+  (let [token (get-in @rfdb/app-db [:auth :token])
         headers (cond-> {"Accept" "application/json"}
                   (not multipart?)
                   (assoc "Content-Type" "application/json")

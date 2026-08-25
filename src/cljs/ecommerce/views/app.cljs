@@ -145,12 +145,12 @@
       (fn []
         (let [notification @(rf/subscribe [:notification])]
           (when notification
-            (when-not @timer-ref
-              (reset! timer-ref
-                      (js/setTimeout (fn []
-                                       (reset! timer-ref nil)
-                                       (rf/dispatch [:clear-notification]))
-                                     4000)))
+            (when-let [old @timer-ref] (js/clearTimeout old))
+            (reset! timer-ref
+                    (js/setTimeout (fn []
+                                     (reset! timer-ref nil)
+                                     (rf/dispatch [:clear-notification]))
+                                   4000))
             [:div {:class (str "fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-lg shadow-lg text-white cursor-pointer "
                                (case (:type notification)
                                  :success "bg-green-600"

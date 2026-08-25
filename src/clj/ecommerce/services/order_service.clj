@@ -12,8 +12,10 @@
     (when (or (nil? quantity) (<= quantity 0))
       (throw (ex-info "quantity must be positive" {:error "invalid quantity"})))))
 
-(defn- check-stock-and-get-product [product-id quantity]
-  (let [product (db/execute-one! ["SELECT * FROM products WHERE id = ?::uuid" product-id])]
+(defn- check-stock-and-get-product [tx product-id quantity]
+  (let [product (jdbc/execute-one! tx
+                  ["SELECT * FROM products WHERE id = ?::uuid FOR UPDATE" product-id]
+                  db/default-opts)]
     (when-not product
       (throw (ex-info (str "Product not found: " product-id) {:product-id product-id})))
     (when (< (:stock product) quantity)
@@ -30,7 +32,7 @@
     (validate-order-items items)
     (jdbc/with-transaction [tx db/datasource]
       (let [products-with-qty (mapv (fn [{:keys [product-id quantity]}]
-                                      (let [product (check-stock-and-get-product product-id quantity)]
+                                      (let [product (check-stock-and-get-product tx product-id quantity)]
                                         (assoc product :order-quantity quantity)))
                                     items)
             total             (reduce (fn [sum p]

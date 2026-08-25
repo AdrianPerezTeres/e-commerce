@@ -112,15 +112,15 @@
  (fn [db _]
    (assoc-in db [:import :loading] false)))
 
-(rf/reg-event-db
+(rf/reg-event-fx
  :import-complete
- (fn [db [_ result]]
-   (rf/dispatch [:set-notification {:type :success
-                                    :message (str "Imported " (:imported result) " products")}])
-   (rf/dispatch [:fetch-products])
-   (-> db
-       (assoc-in [:import :loading] false)
-       (assoc-in [:import :result] result))))
+ (fn [{:keys [db]} [_ result]]
+   {:db (-> db
+             (assoc-in [:import :loading] false)
+             (assoc-in [:import :result] result))
+    :fx [[:dispatch [:set-notification {:type :success
+                                        :message (str "Imported " (:imported result) " products")}]]
+         [:dispatch [:fetch-products]]]}))
 
 (rf/reg-event-db
  :add-to-cart

@@ -88,10 +88,19 @@
     (let [f (java.io.File/createTempFile "test" ".csv")]
       (spit f "name,sku,price\nWidget,W-1,10")
       (is (true? (#'h/text-file? f)))))
-  (testing "rejects binary files"
+  (testing "recognizes UTF-8 text files"
+    (let [f (java.io.File/createTempFile "test" ".csv")]
+      (spit f "name,sku,price\nCafé Latte,CL-1,4.50\nJalapeño,JP-1,2.00")
+      (is (true? (#'h/text-file? f)))))
+  (testing "rejects binary files with NUL bytes"
     (let [f (java.io.File/createTempFile "test" ".csv")]
       (with-open [os (io/output-stream f)]
-        (.write os (byte-array [0x00 0x01 0x02 0xFF])))
+        (.write os (byte-array [0x00 0x01 0x02 0x03])))
+      (is (not (#'h/text-file? f)))))
+  (testing "rejects binary files with control characters"
+    (let [f (java.io.File/createTempFile "test" ".csv")]
+      (with-open [os (io/output-stream f)]
+        (.write os (byte-array (map unchecked-byte [0x89 0x50 0x4E 0x47 0x0D 0x0A 0x1A 0x0A]))))
       (is (not (#'h/text-file? f))))))
 
 (deftest test-import-csv-no-file
@@ -127,10 +136,10 @@
         (is (re-find #"too large" (get-in response [:body :error])))))))
 
 (deftest test-import-csv-binary-content
-  (testing "rejects binary content disguised as csv"
+  (testing "rejects binary content disguised as csv (PNG header)"
     (let [f (java.io.File/createTempFile "test" ".csv")]
       (with-open [os (io/output-stream f)]
-        (.write os (byte-array (map unchecked-byte [0x89 0x50 0x4E 0x47]))))
+        (.write os (byte-array (map unchecked-byte [0x89 0x50 0x4E 0x47 0x0D 0x0A 0x1A 0x0A]))))
       (let [response (h/import-csv {:multipart-params {"file" {:filename "data.csv" :tempfile f}}})]
         (is (= 400 (:status response)))
         (is (re-find #"binary" (get-in response [:body :error])))))))

@@ -45,13 +45,18 @@
 (def ^:private allowed-extensions #{".csv"})
 
 ;; [9] Magic byte validation — detects binary files disguised as .csv (renamed EXE, virus, etc.)
+;; Allows ASCII printable (32-126), tabs, newlines, and UTF-8 multibyte bytes (high-bit set).
+;; Rejects NUL and other control characters that indicate binary content.
 (defn- text-file? [file]
   (with-open [is (io/input-stream file)]
     (let [buf (byte-array 512)
           n   (.read is buf)]
       (when (pos? n)
         (let [bytes (take n (seq buf))]
-          (every? #(or (<= 32 % 126) (#{9 10 13} %)) bytes))))))
+          (every? #(or (<= 32 % 126)    ; ASCII printable
+                       (#{9 10 13} %)    ; tab, LF, CR
+                       (neg? %))         ; high-bit set = UTF-8 multibyte byte (signed)
+                  bytes))))))
 
 (defn import-csv [request]
   (let [file (get-in request [:multipart-params "file"])]

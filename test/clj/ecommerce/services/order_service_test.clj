@@ -28,17 +28,17 @@
 
 (deftest test-check-stock-and-get-product
   (testing "product not found throws"
-    (with-redefs [db/execute-one! (constantly nil)]
+    (with-redefs [jdbc/execute-one! (fn [_ _ _] nil)]
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Product not found"
-            (#'svc/check-stock-and-get-product "p1" 1)))))
+            (#'svc/check-stock-and-get-product :mock-tx "p1" 1)))))
   (testing "insufficient stock throws"
-    (with-redefs [db/execute-one! (constantly {:id "p1" :name "Widget" :stock 2})]
+    (with-redefs [jdbc/execute-one! (fn [_ _ _] {:id "p1" :name "Widget" :stock 2})]
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Insufficient stock"
-            (#'svc/check-stock-and-get-product "p1" 5)))))
+            (#'svc/check-stock-and-get-product :mock-tx "p1" 5)))))
   (testing "sufficient stock returns product"
     (let [product {:id "p1" :name "Widget" :stock 10 :price 9.99M}]
-      (with-redefs [db/execute-one! (constantly product)]
-        (is (= product (#'svc/check-stock-and-get-product "p1" 5)))))))
+      (with-redefs [jdbc/execute-one! (fn [_ _ _] product)]
+        (is (= product (#'svc/check-stock-and-get-product :mock-tx "p1" 5)))))))
 
 (deftest test-create-order-validation-failures
   (testing "empty items returns error"
@@ -61,14 +61,15 @@
     (let [product {:id "p1" :name "Widget" :stock 10 :price 9.99M}
           order   {:id "o1" :order-number "ECOMM-0001" :status "paid" :total 19.98M}
           tx-calls (atom [])]
-      (with-redefs [db/execute-one!  (constantly product)
-                    next.jdbc/transact (fn [_ f _] (f :mock-tx))
-                    next.jdbc/execute-one! (fn [_ sql-params _]
-                                             (swap! tx-calls conj (first sql-params))
-                                             (cond
-                                               (re-find #"INSERT INTO orders" (first sql-params))
-                                               order
-                                               :else nil))]
+      (with-redefs [jdbc/transact (fn [_ f _] (f :mock-tx))
+                    jdbc/execute-one! (fn [_ sql-params _]
+                                        (swap! tx-calls conj (first sql-params))
+                                        (cond
+                                          (re-find #"SELECT.*FROM products" (first sql-params))
+                                          product
+                                          (re-find #"INSERT INTO orders" (first sql-params))
+                                          order
+                                          :else nil))]
         (let [result (svc/create-order {:items [{:product-id "p1" :quantity 2}]
                                         :user-id "u1"})]
           (is (= "o1" (:id result)))
@@ -77,8 +78,8 @@
 
 (deftest test-create-order-stock-failure
   (testing "insufficient stock returns error"
-    (with-redefs [db/execute-one!    (constantly {:id "p1" :name "Widget" :stock 1 :price 10M})
-                  next.jdbc/transact (fn [_ f _] (f :mock-tx))]
+    (with-redefs [jdbc/transact      (fn [_ f _] (f :mock-tx))
+                  jdbc/execute-one!  (fn [_ _ _] {:id "p1" :name "Widget" :stock 1 :price 10M})]
       (let [result (svc/create-order {:items [{:product-id "p1" :quantity 5}]
                                       :user-id "u1"})]
         (is (:error result))
@@ -86,8 +87,8 @@
 
 (deftest test-create-order-db-exception
   (testing "generic exception returns error"
-    (with-redefs [db/execute-one!    (fn [_] (throw (Exception. "DB down")))
-                  next.jdbc/transact (fn [_ f _] (f :mock-tx))]
+    (with-redefs [jdbc/transact      (fn [_ f _] (f :mock-tx))
+                  jdbc/execute-one!  (fn [_ _ _] (throw (Exception. "DB down")))]
       (let [result (svc/create-order {:items [{:product-id "p1" :quantity 1}]
                                       :user-id "u1"})]
         (is (:error result))

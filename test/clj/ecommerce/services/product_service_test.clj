@@ -1,7 +1,8 @@
 (ns ecommerce.services.product-service-test
   (:require [clojure.test :refer [deftest testing is]]
             [ecommerce.services.product-service :as svc]
-            [ecommerce.db.core :as db]))
+            [ecommerce.db.core :as db]
+            [next.jdbc]))
 
 (deftest test-build-query
   (testing "no filters returns empty"
@@ -144,13 +145,15 @@
 
 (deftest test-delete-all-products
   (testing "deletes all products and returns count"
-    (with-redefs [db/execute-one! (constantly {:total 5})
-                  db/execute!     (constantly nil)]
+    (with-redefs [next.jdbc/transact    (fn [_ f _] (f :mock-tx))
+                  next.jdbc/execute-one! (fn [_ _ _] {:total 5})
+                  next.jdbc/execute!     (fn [_ _ _] nil)]
       (let [result (svc/delete-all-products)]
         (is (= 5 (:deleted result))))))
   (testing "handles nil total"
-    (with-redefs [db/execute-one! (constantly {:total nil})
-                  db/execute!     (constantly nil)]
+    (with-redefs [next.jdbc/transact    (fn [_ f _] (f :mock-tx))
+                  next.jdbc/execute-one! (fn [_ _ _] {:total nil})
+                  next.jdbc/execute!     (fn [_ _ _] nil)]
       (let [result (svc/delete-all-products)]
         (is (= 0 (:deleted result)))))))
 

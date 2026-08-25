@@ -1,5 +1,6 @@
 (ns ecommerce.services.product-service
   (:require [ecommerce.db.core :as db]
+            [next.jdbc :as jdbc]
             [ecommerce.services.csv-import :as csv]
             [ecommerce.services.sanitize :as sanitize]
             [clojure.tools.logging :as log])
@@ -112,11 +113,12 @@
       {:error "Product not found"})))
 
 (defn delete-all-products []
-  (let [result (db/execute-one! ["SELECT count(*) AS total FROM products"])]
-    (db/execute! ["DELETE FROM order_items"])
-    (db/execute! ["DELETE FROM orders"])
-    (db/execute! ["DELETE FROM products"])
-    {:deleted (or (:total result) 0)}))
+  (db/with-transaction [tx]
+    (let [result (jdbc/execute-one! tx ["SELECT count(*) AS total FROM products"] db/default-opts)]
+      (jdbc/execute! tx ["DELETE FROM order_items"] db/default-opts)
+      (jdbc/execute! tx ["DELETE FROM orders"] db/default-opts)
+      (jdbc/execute! tx ["DELETE FROM products"] db/default-opts)
+      {:deleted (or (:total result) 0)})))
 
 (defn import-csv [file]
   (csv/process-csv file))
