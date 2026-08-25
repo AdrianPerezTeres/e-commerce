@@ -36,7 +36,7 @@ A full-stack e-commerce application built with Clojure (backend) and ClojureScri
 │              EC2 (Docker Compose)                    │
 │  ┌────────────────────────────────────────────────┐ │
 │  │            Clojure Backend                     │ │
-│  │  Ring + Reitit │ Auth (JWT/Cognito)            │ │
+│  │  Ring + Reitit │ Auth (JWT)                    │ │
 │  │  Handlers → Services → DB Layer (next.jdbc)    │ │
 │  └──────────────────────┬─────────────────────────┘ │
 │                         │                            │
@@ -45,11 +45,11 @@ A full-stack e-commerce application built with Clojure (backend) and ClojureScri
 │  │          Migratus migrations                   │ │
 │  └────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────┘
-         │                              │
-    ┌────▼────┐                   ┌─────▼─────┐
-    │   ECR   │                   │  Cognito  │
-    │ (images)│                   │  (auth)   │
-    └─────────┘                   └───────────┘
+         │
+    ┌────▼────┐
+    │   ECR   │
+    │ (images)│
+    └─────────┘
 ```
 
 ## Tech Stack
@@ -61,7 +61,7 @@ A full-stack e-commerce application built with Clojure (backend) and ClojureScri
 | Database       | PostgreSQL                          | Relational model fits products/orders; ACID transactions     |
 | Connection Pool| HikariCP                            | Industry-standard JDBC pool                                  |
 | Migrations     | Migratus                            | SQL-based, versioned, runs on app startup                    |
-| Auth           | JWT (local demo) / AWS Cognito      | Role-based access control with demo users                    |
+| Auth           | JWT (HS256) + demo accounts         | Role-based access control, auto-login as admin               |
 | Build (BE)     | deps.edn + tools.build              | Modern Clojure standard, composable aliases                  |
 | Build (FE)     | shadow-cljs                         | Best ClojureScript build tool, npm interop                   |
 | Styling        | Tailwind CSS                        | Utility-first, rapid prototyping, consistent design          |
@@ -93,10 +93,10 @@ REST API backend with a ClojureScript SPA over server-rendered templates:
 
 The provided CSV contains intentional attack vectors. Rather than just parsing and inserting, I analyzed the file and built a layered defense pipeline with threat reporting:
 
-**Threats detected and neutralized:**
-1. **XSS injection** (`<script>` tags) — stripped via regex; React/Reagent auto-escapes on render as second layer
-2. **Threat reporting** — scans raw values before sanitization, logs every detected attack
-3. **SQL injection** (`DROP TABLE`) — parameterized queries prevent injection at the driver level
+**Threats detected and blocked:**
+1. **XSS injection** (`<script>` tags) — entire row rejected and logged
+2. **SQL injection** (`DROP TABLE`) — entire row rejected and logged; parameterized queries as second layer
+3. **Threat reporting** — scans raw values before processing, logs every detected attack
 4. **Formula injection** (`=`, `+`, `-`, `@`, `|` prefixes) — stripped to prevent spreadsheet execution
 
 **Handler-level defenses:**
@@ -112,7 +112,7 @@ The same sanitization (XSS + formula stripping) is applied to CRUD API endpoints
 
 ### 5. Authentication & RBAC
 
-The challenge didn't require auth. I added it because real e-commerce apps need access control. In **dev mode** (`AUTH_REQUIRED=false`), it auto-authenticates as admin so reviewers don't need to log in. In **production** (`AUTH_REQUIRED=true`), it shows demo accounts on the login page.
+The challenge didn't require auth. I added it because real e-commerce apps need access control. The app **auto-logs in as admin** on page load — no login step needed. To explore different permission levels, use the **Switch Role** option in the avatar menu.
 
 | Username | Password   | Role   | Permissions                                    |
 |----------|------------|--------|------------------------------------------------|
@@ -120,7 +120,7 @@ The challenge didn't require auth. I added it because real e-commerce apps need 
 | buyer    | buyer123   | buyer  | Browse products, add to cart, place orders      |
 | reader   | reader123  | reader | Read-only: browse products, view orders        |
 
-Architecture: Local JWT (HS256) for demo, AWS Cognito (RS256) when `COGNITO_USER_POOL_ID` is set. Middleware chain: `wrap-auth` → `wrap-require-auth` → `wrap-require-role`.
+Architecture: JWT (HS256) with three hardcoded demo users. Middleware chain: `wrap-auth` → `wrap-require-auth` → `wrap-require-role`.
 
 ### 6. EC2 + Docker Compose
 
@@ -146,7 +146,7 @@ Application Load Balancer with ACM certificate for TLS termination. HTTP redirec
 docker compose up --build
 ```
 
-The app will be available at `http://localhost:8080`. You'll see a login page with three demo accounts (admin/buyer/reader) — click any to log in instantly.
+The app will be available at `http://localhost:8080`. It auto-logs in as admin — you can switch roles via the avatar menu in the top-right corner.
 
 ### Development Mode
 
@@ -230,7 +230,6 @@ bb test:coverage     # backend with coverage report
 | Method | Endpoint              | Auth         | Description              |
 |--------|-----------------------|--------------|--------------------------|
 | GET    | /api/health           | None         | Health check             |
-| GET    | /api/auth/config      | None         | Auth configuration       |
 | POST   | /api/auth/login       | None         | Login (returns JWT)      |
 | GET    | /api/auth/me          | Any role     | Current user info        |
 | GET    | /api/products         | None         | List/search products     |

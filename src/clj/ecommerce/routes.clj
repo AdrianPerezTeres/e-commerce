@@ -18,7 +18,6 @@
    ["/health" {:get health/check}]
 
    ["/auth"
-    ["/config" {:get auth/auth-config}]
     ["/login"  {:post auth/login}]
     ["/me"     {:get {:handler    auth/me
                       :middleware [wrap-require-auth]}}]]

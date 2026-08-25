@@ -43,9 +43,3 @@
       {:status 401
        :body   {:error "Not authenticated"}})))
 
-(defn auth-config [_request]
-  {:status 200
-   :body   {:auth-required (boolean (get-in config [:auth :required]))
-            :demo-users    (mapv (fn [[username {:keys [role]}]]
-                                   {:username username :role role})
-                                 demo-users)}})

@@ -24,10 +24,7 @@
                      (.then (.json response)
                             (fn [data] (on-success (js->clj data :keywordize-keys true)))))
                    (if (= 401 (.-status response))
-                     (do (rf/dispatch [:logout])
-                         (set! (.-hash js/location) "#/login")
-                         (when on-failure
-                           (on-failure {:error "Session expired. Please log in again."})))
+                     (rf/dispatch [:login {:username "admin" :password "admin123"}])
                      (.then (.json response)
                             (fn [data]
                               (when on-failure

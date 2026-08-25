@@ -15,5 +15,4 @@
   (rf/dispatch-sync [:initialize-db])
   (routes/start!)
   (mount-root)
-  (when ^boolean goog.DEBUG
-    (rf/dispatch [:login {:username "admin" :password "admin123"}])))
+  (rf/dispatch [:login {:username "admin" :password "admin123"}]))

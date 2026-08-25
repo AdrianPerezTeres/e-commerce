@@ -110,7 +110,6 @@ resource "aws_iam_user_policy" "ci" {
           "ec2:*",
           "iam:*",
           "ecr:*",
-          "cognito-idp:*",
           "dynamodb:*",
           "ssm:*",
           "elasticloadbalancing:*",
