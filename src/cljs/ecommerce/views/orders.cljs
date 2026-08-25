@@ -25,20 +25,16 @@
             total      (count items)
             show-items (take 5 items)
             display-id (or (:order-number order) (:id order))]
-        ;; backdrop
         [:div {:class    "fixed inset-0 z-50 flex items-center justify-center bg-black/40"
                :on-click (fn [e]
                            (when (= (.-target e) (.-currentTarget e))
                              (on-close)))}
-         ;; dialog
          [:div {:class "bg-white rounded-xl shadow-xl w-full max-w-2xl mx-4 overflow-hidden"}
-          ;; header
           [:div {:class "flex items-center justify-between px-6 py-4 border-b border-gray-200"}
            [:div
             [:h2 {:class "text-lg font-semibold text-gray-900"} "Order Items"]
             [:p {:class "text-xs font-mono text-gray-400 mt-0.5"} display-id]]
            [status-badge (:status order)]]
-          ;; body
           [:div {:class "px-6 py-4"}
            (if loading
              [:div {:class "text-center py-8 text-gray-400"} "Loading items..."]
@@ -66,7 +62,6 @@
                 (when (> total 5)
                   [:p {:class "mt-3 text-xs text-gray-400 italic"}
                    (str "Showing 5 of " total " items in this order")])]))]
-          ;; footer
           [:div {:class "flex items-center justify-between px-6 py-3 bg-gray-50 border-t border-gray-200"}
            [:div
             [:span {:class "text-sm text-gray-500"} (:created-at order)]

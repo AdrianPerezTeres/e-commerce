@@ -23,7 +23,6 @@
  (fn [{:keys [db]} _]
    {:db (assoc-in db [:ui :notification] nil)}))
 
-;; Products
 (rf/reg-event-fx
  :fetch-products
  (fn [{:keys [db]} [_ params]]
@@ -91,7 +90,6 @@
        (assoc-in [:import :loading] false)
        (assoc-in [:import :result] result))))
 
-;; Cart
 (rf/reg-event-db
  :add-to-cart
  (fn [db [_ product quantity]]
@@ -131,7 +129,6 @@
  (fn [db _]
    (assoc-in db [:cart :items] [])))
 
-;; Orders
 (rf/reg-event-fx
  :place-order
  (fn [{:keys [db]} _]
@@ -178,7 +175,6 @@
  (fn [db [_ order-id detail]]
    (assoc-in db [:orders :details order-id] detail)))
 
-;; Search
 (rf/reg-event-db
  :set-search-query
  (fn [db [_ query]]
@@ -189,7 +185,6 @@
  (fn [db [_ category]]
    (assoc-in db [:search :category] category)))
 
-;; Auth
 (rf/reg-event-fx
  :login
  (fn [{:keys [db]} [_ {:keys [username password]}]]

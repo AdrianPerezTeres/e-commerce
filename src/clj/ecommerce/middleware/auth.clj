@@ -8,8 +8,6 @@
             [ecommerce.config :refer [config]])
   (:import [java.util Base64]))
 
-;; --- Cognito (RS256) JWT verification ---
-
 (defonce jwks-cache (atom nil))
 
 (defn- fetch-jwks []
@@ -50,8 +48,6 @@
       (log/warn "Cognito JWT verification failed:" (.getMessage e))
       nil)))
 
-;; --- Local (HS256) JWT verification ---
-
 (def ^:private jwt-secret "ecommerce-demo-secret-key-2024")
 
 (defn- verify-local-token [token]
@@ -59,8 +55,6 @@
     (jwt/unsign token jwt-secret {:alg :hs256})
     (catch Exception _
       nil)))
-
-;; --- Shared helpers ---
 
 (defn- cognito-configured? []
   (let [pool-id (get-in config [:cognito :user-pool-id])]
@@ -80,10 +74,7 @@
     (verify-cognito-token token)
     (verify-local-token token)))
 
-;; --- Ring middleware ---
-
 (defn wrap-auth
-  "Extracts JWT from Authorization header and adds :identity to request."
   [handler]
   (fn [request]
     (let [auth-header (get-in request [:headers "authorization"])
@@ -97,8 +88,6 @@
   (get-in config [:auth :required]))
 
 (defn wrap-require-auth
-  "Rejects unauthenticated requests with 401.
-   When AUTH_REQUIRED=false (dev mode), anonymous users get admin role."
   [handler]
   (fn [request]
     (if (:identity request)
@@ -112,7 +101,6 @@
          :body   {:error "Authentication required. Please log in."}}))))
 
 (defn wrap-require-role
-  "Rejects requests from users without one of the allowed roles."
   [handler & allowed-roles]
   (let [roles (set allowed-roles)]
     (fn [request]

@@ -6,7 +6,6 @@ yum install -y docker git unzip
 systemctl enable docker
 systemctl start docker
 
-# Install AWS CLI for ECR login
 curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
 unzip -q /tmp/awscliv2.zip -d /tmp
 /tmp/aws/install
@@ -18,7 +17,6 @@ chmod +x /usr/local/bin/docker-compose
 
 mkdir -p /opt/ecommerce
 
-# ECR login cron (tokens expire every 12h)
 cat > /opt/ecommerce/ecr-login.sh <<'ECRLOGIN'
 #!/bin/bash
 aws ecr get-login-password --region ${aws_region} | \
@@ -27,7 +25,6 @@ ECRLOGIN
 chmod +x /opt/ecommerce/ecr-login.sh
 echo "0 */6 * * * /opt/ecommerce/ecr-login.sh" | crontab -
 
-# Initial ECR login
 /opt/ecommerce/ecr-login.sh
 
 cat > /opt/ecommerce/.env <<EOF

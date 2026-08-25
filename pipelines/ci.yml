@@ -20,13 +20,9 @@ variables:
   nodeVersion: '20'
 
 stages:
-  # ---------------------------------------------------------------------------
-  # Stage 1: Build, Test & Validate
-  # ---------------------------------------------------------------------------
   - stage: Build
     displayName: 'Build, Test & Validate'
     jobs:
-      # --- Backend: Clojure tests with coverage ---
       - job: BackendTests
         displayName: 'Build & Test Backend'
         steps:
@@ -55,7 +51,6 @@ stages:
           - script: clojure -M:test -m kaocha.runner --plugin cloverage --cov-output target/coverage
             displayName: 'Run tests with coverage'
 
-          # Collect coverage files for merge job
           - script: |
               mkdir -p "$(Build.ArtifactStagingDirectory)/coverage"
               find target/coverage -name "*.xml" \
@@ -66,7 +61,6 @@ stages:
             artifact: coverage-backend
             displayName: 'Publish backend coverage artifact'
 
-      # --- Frontend: shadow-cljs tests ---
       - job: FrontendTests
         displayName: 'Build & Test Frontend'
         steps:
@@ -90,7 +84,6 @@ stages:
           - script: npx shadow-cljs compile test && node out/test/test.js
             displayName: 'Run frontend tests'
 
-      # --- Terraform: fmt + validate ---
       - job: TerraformValidate
         displayName: 'Validate Terraform'
         steps:
@@ -113,7 +106,6 @@ stages:
               set -euo pipefail
               cd infra
 
-              # Override S3 backend with local so validate works without AWS creds
               cat > _ci_override.tf << 'OVERRIDE'
               terraform {
                 backend "local" {}
@@ -125,7 +117,6 @@ stages:
               rm -f _ci_override.tf
             displayName: 'Terraform validate'
 
-      # --- Docker: build + save as artifact ---
       - job: DockerBuild
         displayName: 'Build Docker Image'
         steps:
@@ -149,7 +140,6 @@ stages:
             artifact: app-image
             displayName: 'Publish Docker artifact'
 
-      # --- Coverage: merge and publish reports ---
       - job: CoverageReport
         displayName: 'Coverage Report'
         dependsOn:
@@ -169,15 +159,11 @@ stages:
               summaryFileLocation: '$(Pipeline.Workspace)/coverage/**/*.xml'
             continueOnError: true
 
-  # ---------------------------------------------------------------------------
-  # Stage 2: Deploy (Terraform + ECR + EC2)
-  # ---------------------------------------------------------------------------
   - stage: Deploy
     displayName: 'Deploy'
     dependsOn: Build
     condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
     jobs:
-      # --- Terraform: apply infrastructure changes ---
       - job: TerraformApply
         displayName: 'Terraform Apply'
         steps:
@@ -220,7 +206,6 @@ stages:
               TF_VAR_key_pair_name: $(TF_VAR_KEY_PAIR_NAME)
               TF_VAR_ecr_registry: $(ECR_REGISTRY)
 
-      # --- Deploy: push to ECR + SSH update on EC2 ---
       - job: DeployApp
         displayName: 'Deploy App'
         dependsOn: TerraformApply
@@ -271,7 +256,6 @@ stages:
 
               echo "SSM Command ID: $COMMAND_ID"
 
-              # Wait for command to complete (timeout 120s)
               aws ssm wait command-executed \
                 --command-id "$COMMAND_ID" \
                 --instance-id "$INSTANCE_ID" \

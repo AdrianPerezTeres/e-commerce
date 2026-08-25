@@ -1,8 +1,0 @@
-aws_region       = "us-east-1"
-aws_profile      = "ecommerce"
-environment      = "production"
-instance_type    = "t3.micro"
-key_pair_name    = "your-key-pair-name"
-db_password      = "change-me-to-a-secure-password"
-allowed_ssh_cidr = "YOUR_IP/32"
-ecr_registry     = "953761113604.dkr.ecr.us-east-1.amazonaws.com"

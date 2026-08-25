@@ -42,9 +42,6 @@ resource "aws_iam_instance_profile" "app" {
   role = aws_iam_role.app.name
 }
 
-# --- CI Pipeline IAM User ---
-# Used by Azure DevOps pipeline for deployments
-
 resource "aws_iam_user" "ci" {
   name = "ecommerce-ci"
   tags = { Name = "ecommerce-ci" }
