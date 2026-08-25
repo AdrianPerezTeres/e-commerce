@@ -1,6 +1,7 @@
 (ns ecommerce.services.csv-import-test
   (:require [clojure.test :refer [deftest testing is]]
             [ecommerce.services.csv-import :as csv]
+            [ecommerce.services.sanitize :as sanitize]
             [clojure.java.io :as io]))
 
 (defn- create-temp-csv [content]
@@ -41,12 +42,12 @@
 
 (deftest test-strip-html
   (testing "removes HTML tags"
-    (is (= "alert('XSS')" (#'csv/strip-html "<script>alert('XSS')</script>")))
-    (is (= "bold text" (#'csv/strip-html "<b>bold text</b>"))))
+    (is (= "alert('XSS')" (sanitize/strip-html "<script>alert('XSS')</script>")))
+    (is (= "bold text" (sanitize/strip-html "<b>bold text</b>"))))
   (testing "passes through clean strings"
-    (is (= "normal text" (#'csv/strip-html "normal text"))))
+    (is (= "normal text" (sanitize/strip-html "normal text"))))
   (testing "handles nil"
-    (is (nil? (#'csv/strip-html nil)))))
+    (is (nil? (sanitize/strip-html nil)))))
 
 (deftest test-validate-row
   (testing "valid row passes validation"
