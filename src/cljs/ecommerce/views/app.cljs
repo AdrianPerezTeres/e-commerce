@@ -23,10 +23,7 @@
   (let [current-route @(rf/subscribe [:current-route])
         active?       (= route-name (get-in current-route [:data :name]))]
     [:a {:href  (routes/href route-name)
-         :class (str "px-4 py-2 rounded-md text-sm font-medium transition-colors "
-                     (if active?
-                       "bg-white/20 text-white"
-                       "text-indigo-100 hover:bg-white/10 hover:text-white"))}
+         :class "px-4 py-2 rounded-md text-sm font-medium transition-colors focus:outline-none text-indigo-100 hover:bg-white/10 hover:text-white"}
      label]))
 
 (defn about-dialog [on-close]
@@ -128,7 +125,7 @@
       [:div {:class "flex items-center justify-between h-16"}
        ;; Left: Logo
        [:a {:href (routes/href :home)
-            :class "flex items-center space-x-2 text-xl font-bold text-white"}
+            :class "flex items-center space-x-2 text-xl font-bold text-white focus:outline-none"}
         [:svg {:xmlns "http://www.w3.org/2000/svg" :class "h-7 w-7" :fill "none"
                :viewBox "0 0 24 24" :stroke "currentColor" :stroke-width "1.5"}
          [:path {:stroke-linecap "round" :stroke-linejoin "round"
@@ -146,12 +143,12 @@
         (if authenticated?
           [avatar-menu user role]
           [:a {:href  (routes/href :login)
-               :class "text-indigo-100 hover:text-white text-sm px-3 py-2"}
+               :class "text-indigo-100 hover:text-white text-sm px-3 py-2 focus:outline-none"}
            "Login"])
         [nav-link :orders "Orders"]
         (when (#{"admin" "buyer"} role)
           [:a {:href  (routes/href :cart)
-               :class "relative text-indigo-100 hover:text-white p-2 group"}
+               :class "relative text-indigo-100 hover:text-white p-2 group focus:outline-none"}
            [:svg {:xmlns "http://www.w3.org/2000/svg" :class "h-6 w-6" :fill "none"
                   :viewBox "0 0 24 24" :stroke "currentColor" :stroke-width "1.5"}
             [:path {:stroke-linecap "round" :stroke-linejoin "round"

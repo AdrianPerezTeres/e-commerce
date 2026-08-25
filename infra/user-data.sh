@@ -2,15 +2,34 @@
 set -euo pipefail
 
 yum update -y
-yum install -y docker git
+yum install -y docker git unzip
 systemctl enable docker
 systemctl start docker
+
+# Install AWS CLI for ECR login
+curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+unzip -q /tmp/awscliv2.zip -d /tmp
+/tmp/aws/install
+rm -rf /tmp/awscliv2.zip /tmp/aws
 
 curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" \
   -o /usr/local/bin/docker-compose
 chmod +x /usr/local/bin/docker-compose
 
 mkdir -p /opt/ecommerce
+
+# ECR login cron (tokens expire every 12h)
+cat > /opt/ecommerce/ecr-login.sh <<'ECRLOGIN'
+#!/bin/bash
+aws ecr get-login-password --region ${aws_region} | \
+  docker login --username AWS --password-stdin ${ecr_registry}
+ECRLOGIN
+chmod +x /opt/ecommerce/ecr-login.sh
+echo "0 */6 * * * /opt/ecommerce/ecr-login.sh" | crontab -
+
+# Initial ECR login
+/opt/ecommerce/ecr-login.sh
+
 cat > /opt/ecommerce/.env <<EOF
 DB_PASSWORD=${db_password}
 DB_USER=ecommerce
@@ -20,24 +39,24 @@ DB_PORT=5432
 PORT=8080
 EOF
 
-cat > /opt/ecommerce/docker-compose.yml <<'COMPOSE'
+cat > /opt/ecommerce/docker-compose.yml <<COMPOSE
 services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: $${DB_NAME}
-      POSTGRES_USER: $${DB_USER}
-      POSTGRES_PASSWORD: $${DB_PASSWORD}
+      POSTGRES_DB: \$${DB_NAME}
+      POSTGRES_USER: \$${DB_USER}
+      POSTGRES_PASSWORD: \$${DB_PASSWORD}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${DB_USER}"]
+      test: ["CMD-SHELL", "pg_isready -U \$${DB_USER}"]
       interval: 5s
       timeout: 5s
       retries: 5
 
   app:
-    image: ghcr.io/${GITHUB_REPO:-ecommerce/ecommerce}:latest
+    image: ${ecr_registry}/ecommerce:latest
     ports:
       - "80:8080"
     env_file: .env

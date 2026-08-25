@@ -21,11 +21,15 @@ resource "aws_instance" "app" {
   vpc_security_group_ids = [aws_security_group.app.id]
 
   user_data = templatefile("${path.module}/user-data.sh", {
-    db_password = var.db_password
+    db_password  = var.db_password
+    ecr_registry = var.ecr_registry
+    aws_region   = var.aws_region
   })
 
+  iam_instance_profile = aws_iam_instance_profile.app.name
+
   root_block_device {
-    volume_size = 20
+    volume_size = 30
     volume_type = "gp3"
   }
 

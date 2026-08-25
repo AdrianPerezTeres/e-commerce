@@ -1,30 +1,37 @@
 trigger:
+  batch: true
   branches:
     include:
       - main
-      - master
 
 pr:
   branches:
     include:
       - main
-      - master
+
+pool:
+  vmImage: 'ubuntu-latest'
 
 variables:
-  dockerRegistry: 'ghcr.io'
-  imageName: 'ecommerce'
+  AWS_REGION: 'us-east-1'
+  ECR_REGISTRY: '$(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com'
+  ECR_REPOSITORY: 'ecommerce'
   javaVersion: '21'
   nodeVersion: '20'
 
 stages:
-  - stage: Test
-    displayName: 'Run Tests'
+  # ---------------------------------------------------------------------------
+  # Stage 1: Build, Test & Validate
+  # ---------------------------------------------------------------------------
+  - stage: Build
+    displayName: 'Build, Test & Validate'
     jobs:
+      # --- Backend: Clojure tests with coverage ---
       - job: BackendTests
-        displayName: 'Backend Tests'
-        pool:
-          vmImage: 'ubuntu-latest'
+        displayName: 'Build & Test Backend'
         steps:
+          - checkout: self
+
           - task: JavaToolInstaller@0
             displayName: 'Set up Java 21'
             inputs:
@@ -48,18 +55,23 @@ stages:
           - script: clojure -M:test -m kaocha.runner --plugin cloverage --cov-output target/coverage
             displayName: 'Run tests with coverage'
 
-          - task: PublishBuildArtifacts@1
-            displayName: 'Upload coverage report'
-            condition: always()
-            inputs:
-              pathToPublish: 'target/coverage'
-              artifactName: 'coverage-report'
+          # Collect coverage files for merge job
+          - script: |
+              mkdir -p "$(Build.ArtifactStagingDirectory)/coverage"
+              find target/coverage -name "*.xml" \
+                -exec cp --parents -t "$(Build.ArtifactStagingDirectory)/coverage/" {} + 2>/dev/null || true
+            displayName: 'Collect backend coverage'
 
+          - publish: $(Build.ArtifactStagingDirectory)/coverage
+            artifact: coverage-backend
+            displayName: 'Publish backend coverage artifact'
+
+      # --- Frontend: shadow-cljs tests ---
       - job: FrontendTests
-        displayName: 'Frontend Tests'
-        pool:
-          vmImage: 'ubuntu-latest'
+        displayName: 'Build & Test Frontend'
         steps:
+          - checkout: self
+
           - task: JavaToolInstaller@0
             displayName: 'Set up Java 21'
             inputs:
@@ -78,60 +90,221 @@ stages:
           - script: npx shadow-cljs compile test && node out/test/test.js
             displayName: 'Run frontend tests'
 
-  - stage: Build
-    displayName: 'Build Docker Image'
-    dependsOn: Test
-    jobs:
-      - job: DockerBuild
-        displayName: 'Docker Build'
-        pool:
-          vmImage: 'ubuntu-latest'
+      # --- Terraform: fmt + validate ---
+      - job: TerraformValidate
+        displayName: 'Validate Terraform'
         steps:
-          - task: Docker@2
-            displayName: 'Build Docker image'
-            inputs:
-              command: 'build'
-              Dockerfile: 'Dockerfile'
-              buildContext: '.'
-              tags: '$(Build.SourceVersion)'
+          - checkout: self
+            fetchDepth: 1
 
+          - script: |
+              set -euo pipefail
+              TERRAFORM_VERSION="1.11.4"
+              curl -fsSL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" -o /tmp/terraform.zip
+              sudo unzip -o /tmp/terraform.zip -d /usr/local/bin/
+              rm /tmp/terraform.zip
+              terraform --version
+            displayName: 'Install Terraform'
+
+          - script: terraform fmt -check -recursive infra/
+            displayName: 'Terraform fmt check'
+
+          - script: |
+              set -euo pipefail
+              cd infra
+
+              # Override S3 backend with local so validate works without AWS creds
+              cat > _ci_override.tf << 'OVERRIDE'
+              terraform {
+                backend "local" {}
+              }
+              OVERRIDE
+
+              terraform init -input=false 2>&1 | tail -1
+              terraform validate
+              rm -f _ci_override.tf
+            displayName: 'Terraform validate'
+
+      # --- Docker: build + save as artifact ---
+      - job: DockerBuild
+        displayName: 'Build Docker Image'
+        steps:
+          - checkout: self
+
+          - script: |
+              docker build \
+                -t $(ECR_REGISTRY)/$(ECR_REPOSITORY):$(Build.BuildId) \
+                -t $(ECR_REGISTRY)/$(ECR_REPOSITORY):latest \
+                .
+            displayName: 'Build Docker image'
+
+          - script: |
+              docker save \
+                $(ECR_REGISTRY)/$(ECR_REPOSITORY):$(Build.BuildId) \
+                $(ECR_REGISTRY)/$(ECR_REPOSITORY):latest \
+                -o $(Build.ArtifactStagingDirectory)/app-image.tar
+            displayName: 'Save Docker image'
+
+          - publish: $(Build.ArtifactStagingDirectory)/app-image.tar
+            artifact: app-image
+            displayName: 'Publish Docker artifact'
+
+      # --- Coverage: merge and publish reports ---
+      - job: CoverageReport
+        displayName: 'Coverage Report'
+        dependsOn:
+          - BackendTests
+        condition: succeededOrFailed()
+        steps:
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download backend coverage'
+            inputs:
+              artifactName: 'coverage-backend'
+              targetPath: '$(Pipeline.Workspace)/coverage/backend'
+            continueOnError: true
+
+          - task: PublishCodeCoverageResults@2
+            displayName: 'Publish code coverage'
+            inputs:
+              summaryFileLocation: '$(Pipeline.Workspace)/coverage/**/*.xml'
+            continueOnError: true
+
+  # ---------------------------------------------------------------------------
+  # Stage 2: Deploy (Terraform + ECR + EC2)
+  # ---------------------------------------------------------------------------
   - stage: Deploy
     displayName: 'Deploy'
     dependsOn: Build
     condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
     jobs:
-      - deployment: DeployToEC2
-        displayName: 'Deploy to EC2'
-        pool:
-          vmImage: 'ubuntu-latest'
-        environment: 'production'
-        strategy:
-          runOnce:
-            deploy:
-              steps:
-                - checkout: self
+      # --- Terraform: apply infrastructure changes ---
+      - job: TerraformApply
+        displayName: 'Terraform Apply'
+        steps:
+          - checkout: self
 
-                - task: Docker@2
-                  displayName: 'Login to container registry'
-                  inputs:
-                    command: 'login'
-                    containerRegistry: '$(dockerRegistry)'
+          - script: |
+              set -euo pipefail
+              if ! command -v terraform &> /dev/null; then
+                TERRAFORM_VERSION="1.11.4"
+                curl -fsSL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" -o /tmp/terraform.zip
+                sudo unzip -o /tmp/terraform.zip -d /usr/local/bin/
+                rm /tmp/terraform.zip
+              fi
+              terraform --version
+            displayName: 'Install Terraform'
 
-                - task: Docker@2
-                  displayName: 'Build and push image'
-                  inputs:
-                    command: 'buildAndPush'
-                    Dockerfile: 'Dockerfile'
-                    buildContext: '.'
-                    repository: '$(dockerRegistry)/$(imageName)'
-                    tags: 'latest'
+          - script: |
+              set -euo pipefail
+              cd infra
 
-                - task: SSH@0
-                  displayName: 'Deploy to EC2'
-                  inputs:
-                    sshEndpoint: 'EC2-Production'
-                    runOptions: 'inline'
-                    inline: |
-                      cd /opt/ecommerce
-                      docker-compose pull app
-                      docker-compose up -d
+              echo "##[group]Terraform Init"
+              terraform init -input=false -reconfigure
+              echo "##[endgroup]"
+
+              echo "##[group]Terraform Plan"
+              terraform plan -input=false -out=tfplan
+              echo "##[endgroup]"
+
+              echo "##[group]Terraform Apply"
+              terraform apply -input=false -auto-approve tfplan
+              echo "##[endgroup]"
+
+              echo "Terraform apply completed successfully."
+            displayName: 'Terraform Init + Plan + Apply'
+            env:
+              AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
+              AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
+              AWS_DEFAULT_REGION: $(AWS_REGION)
+              TF_VAR_db_password: $(TF_VAR_DB_PASSWORD)
+              TF_VAR_key_pair_name: $(TF_VAR_KEY_PAIR_NAME)
+              TF_VAR_ecr_registry: $(ECR_REGISTRY)
+
+      # --- Deploy: push to ECR + SSH update on EC2 ---
+      - job: DeployApp
+        displayName: 'Deploy App'
+        dependsOn: TerraformApply
+        steps:
+          - download: current
+            artifact: app-image
+            displayName: 'Download Docker artifact'
+
+          - script: |
+              docker load -i $(Pipeline.Workspace)/app-image/app-image.tar
+            displayName: 'Load Docker image'
+
+          - script: |
+              aws ecr get-login-password --region $(AWS_REGION) | \
+                docker login --username AWS --password-stdin $(ECR_REGISTRY)
+            displayName: 'Login to ECR'
+            env:
+              AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
+              AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
+              AWS_DEFAULT_REGION: $(AWS_REGION)
+
+          - script: |
+              docker push $(ECR_REGISTRY)/$(ECR_REPOSITORY):$(Build.BuildId)
+              docker push $(ECR_REGISTRY)/$(ECR_REPOSITORY):latest
+            displayName: 'Push to ECR'
+            env:
+              AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
+              AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
+              AWS_DEFAULT_REGION: $(AWS_REGION)
+
+          - script: |
+              set -euo pipefail
+              INSTANCE_ID=$(aws ec2 describe-instances \
+                --filters "Name=tag:Name,Values=ecommerce-app" "Name=instance-state-name,Values=running" \
+                --query "Reservations[0].Instances[0].InstanceId" \
+                --output text \
+                --region $(AWS_REGION))
+
+              echo "Deploying to instance: $INSTANCE_ID"
+
+              COMMAND_ID=$(aws ssm send-command \
+                --instance-ids "$INSTANCE_ID" \
+                --document-name "AWS-RunShellScript" \
+                --parameters 'commands=["cd /opt/ecommerce && /opt/ecommerce/ecr-login.sh && docker compose pull app && docker compose up -d"]' \
+                --region $(AWS_REGION) \
+                --query "Command.CommandId" \
+                --output text)
+
+              echo "SSM Command ID: $COMMAND_ID"
+
+              # Wait for command to complete (timeout 120s)
+              aws ssm wait command-executed \
+                --command-id "$COMMAND_ID" \
+                --instance-id "$INSTANCE_ID" \
+                --region $(AWS_REGION) 2>/dev/null || true
+
+              STATUS=$(aws ssm get-command-invocation \
+                --command-id "$COMMAND_ID" \
+                --instance-id "$INSTANCE_ID" \
+                --region $(AWS_REGION) \
+                --query "Status" \
+                --output text)
+
+              echo "Command status: $STATUS"
+
+              aws ssm get-command-invocation \
+                --command-id "$COMMAND_ID" \
+                --instance-id "$INSTANCE_ID" \
+                --region $(AWS_REGION) \
+                --query "StandardOutputContent" \
+                --output text
+
+              if [ "$STATUS" != "Success" ]; then
+                echo "##[error]Deploy failed with status: $STATUS"
+                aws ssm get-command-invocation \
+                  --command-id "$COMMAND_ID" \
+                  --instance-id "$INSTANCE_ID" \
+                  --region $(AWS_REGION) \
+                  --query "StandardErrorContent" \
+                  --output text
+                exit 1
+              fi
+            displayName: 'Deploy to EC2 via SSM'
+            env:
+              AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
+              AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
+              AWS_DEFAULT_REGION: $(AWS_REGION)
