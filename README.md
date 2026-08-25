@@ -15,17 +15,35 @@ A full-stack e-commerce application built with Clojure (backend) and ClojureScri
 │         Client-side routing (Reitit)                │
 │         Tailwind CSS                                │
 └──────────────────────┬──────────────────────────────┘
-                       │ REST/JSON + JWT
-┌──────────────────────▼──────────────────────────────┐
-│                  Clojure Backend                    │
-│  Ring + Reitit │ Middleware (Auth, CORS, Multipart) │
-│  Handlers → Services → DB Layer (next.jdbc)         │
-└──────────────────────┬──────────────────────────────┘
+                       │ HTTPS
+              ┌────────▼────────┐
+              │  Route 53 DNS   │
+              │  ACM (TLS cert) │
+              └────────┬────────┘
                        │
+              ┌────────▼────────┐
+              │   ALB (HTTPS)   │
+              │   Multi-AZ      │
+              └────────┬────────┘
+                       │ HTTP :80
 ┌──────────────────────▼──────────────────────────────┐
-│              PostgreSQL (HikariCP pool)              │
-│              Migratus migrations                     │
+│              EC2 (Docker Compose)                    │
+│  ┌────────────────────────────────────────────────┐ │
+│  │            Clojure Backend                     │ │
+│  │  Ring + Reitit │ Auth (JWT/Cognito)            │ │
+│  │  Handlers → Services → DB Layer (next.jdbc)    │ │
+│  └──────────────────────┬─────────────────────────┘ │
+│                         │                            │
+│  ┌──────────────────────▼─────────────────────────┐ │
+│  │          PostgreSQL 16 (HikariCP)              │ │
+│  │          Migratus migrations                   │ │
+│  └────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────┘
+         │                              │
+    ┌────▼────┐                   ┌─────▼─────┐
+    │   ECR   │                   │  Cognito  │
+    │ (images)│                   │  (auth)   │
+    └─────────┘                   └───────────┘
 ```
 
 ## Tech Stack
@@ -50,7 +68,7 @@ A full-stack e-commerce application built with Clojure (backend) and ClojureScri
 
 The challenge asked for a CRUD app with CSV import — achievable in a weekend with any framework. I deliberately chose to go further to demonstrate the kind of thinking and ownership I bring to real projects:
 
-- **Clojure instead of .NET/Angular** — I could have used my daily stack (.NET + Angular) and finished faster, but LoanPro uses Clojure. Learning and delivering in an unfamiliar language within a tight deadline shows adaptability and commitment.
+- **Clojure instead of .NET/Angular** — I could have used my daily stack (.NET + Angular) and finished faster, but the Client uses Clojure. Learning and delivering in an unfamiliar language within a tight deadline shows adaptability and commitment.
 - **AWS deployment instead of local-only** — Not required, but a running production URL proves the app works beyond `localhost`. It also demonstrates infrastructure skills (Terraform, CI/CD, Docker, SSM) that are hard to show in a code review alone.
 - **HTTPS + ALB + ACM instead of plain HTTP** — A simple EC2 with port 80 would have worked. Adding an Application Load Balancer with a TLS certificate shows understanding of production architecture.
 - **Cognito (Auth0-style) instead of no auth** — The challenge didn't require authentication. Adding JWT-based RBAC with three roles and a Cognito-ready backend demonstrates security awareness. The simpler path would have been no login at all.
@@ -63,9 +81,9 @@ None of these were required. All of them reflect how I approach real work — no
 
 ### 1. Clojure Full-Stack (vs .NET + Angular)
 
-I chose Clojure because LoanPro uses it. Rather than submitting a polished solution in a familiar stack, I wanted to demonstrate willingness to learn and deliver in the team's actual technology. ClojureScript on the frontend (Reagent + Re-frame) keeps the entire codebase in one language and ecosystem.
+I chose Clojure because the Client uses it. Rather than submitting a polished solution in a familiar stack, I wanted to demonstrate willingness to learn and deliver in the team's actual technology. ClojureScript on the frontend (Reagent + Re-frame) keeps the entire codebase in one language and ecosystem.
 
-**Alternative considered:** .NET backend + Angular frontend — my daily stack, would have been faster but wouldn't demonstrate alignment with LoanPro's technology choices.
+**Alternative considered:** .NET backend + Angular frontend — my daily stack, would have been faster but wouldn't demonstrate alignment with the Client's technology choices.
 
 ### 2. Separate API + SPA (vs Server-Rendered)
 

@@ -4,11 +4,11 @@
 
 ## Slide 1: Architectural Decisions
 
-- **Clojure (Full-Stack)** — I chose Clojure because LoanPro already uses it. This challenge was an opportunity to familiarize myself with the stack and embrace functional programming. I used ClojureScript on the frontend for consistency across the codebase, leveraging Reagent (a React wrapper) for a modern SPA experience.
+- **Clojure (Full-Stack)** — I chose Clojure because the Client already uses it. This challenge was an opportunity to familiarize myself with the stack and embrace functional programming. I used ClojureScript on the frontend for consistency across the codebase, leveraging Reagent (a React wrapper) for a modern SPA experience.
 
 - **PostgreSQL** — Products and orders form a relational domain with structured relationships, constraints, and transactional integrity. A relational database was the natural fit over a document store.
 
-- **AWS** — LoanPro uses AWS, and I have hands-on experience with it. This made it the right choice to demonstrate real-world deployment skills on a familiar platform.
+- **AWS** — the Client uses AWS, and I have hands-on experience with it. This made it the right choice to demonstrate real-world deployment skills on a familiar platform.
 
 - **Babashka** — I added Babashka as a task runner (`bb dev`, `bb test`) to simplify the local development workflow. Research confirmed this is a standard practice across Clojure projects.
 
