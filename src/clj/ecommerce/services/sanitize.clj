@@ -46,12 +46,19 @@
         (log/warn (str "Threats detected in " source " — [" summary "]"))))
     threats))
 
+(defn has-malicious-content?
+  "Returns true if threats include XSS or SQL Injection (not just formula injection)."
+  [threats]
+  (some #(#{"XSS" "SQL Injection"} (:type %)) threats))
+
 (defn sanitize-product
-  "Sanitizes product text fields (name, description). Detects and logs threats before stripping."
+  "Sanitizes product text fields (name, description). Detects and logs threats.
+   Returns {:data sanitized-map :threats [...]} so callers can reject malicious input."
   [data source]
-  (detect-threats {"name"        (:name data)
-                   "description" (:description data)}
-                  source)
-  (-> data
-      (update :name sanitize-text)
-      (update :description sanitize-text)))
+  (let [threats (detect-threats {"name"        (:name data)
+                                 "description" (:description data)}
+                                source)
+        clean   (-> data
+                    (update :name sanitize-text)
+                    (update :description sanitize-text))]
+    {:data clean :threats threats}))

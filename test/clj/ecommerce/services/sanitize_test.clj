@@ -24,18 +24,26 @@
     (is (nil? (sanitize/sanitize-text nil)))))
 
 (deftest test-sanitize-product
-  (testing "sanitizes name and description"
+  (testing "sanitizes name and description, returns data + threats"
     (let [data   {:name "<script>bad</script>" :description "=SUM(A1)" :sku "TEST-1" :price 10}
-          result (sanitize/sanitize-product data "test")]
-      (is (= "bad" (:name result)))
-      (is (= "SUM(A1)" (:description result)))
-      (is (= "TEST-1" (:sku result)))
-      (is (= 10 (:price result)))))
-  (testing "leaves clean data unchanged"
+          {:keys [data threats]} (sanitize/sanitize-product data "test")]
+      (is (= "bad" (:name data)))
+      (is (= "SUM(A1)" (:description data)))
+      (is (= "TEST-1" (:sku data)))
+      (is (= 10 (:price data)))
+      (is (some #(= "XSS" (:type %)) threats))
+      (is (some #(= "Formula Injection" (:type %)) threats))))
+  (testing "leaves clean data unchanged with empty threats"
     (let [data   {:name "Widget" :description "A nice widget" :sku "W-001" :price 29.99}
-          result (sanitize/sanitize-product data "test")]
-      (is (= "Widget" (:name result)))
-      (is (= "A nice widget" (:description result))))))
+          {:keys [data threats]} (sanitize/sanitize-product data "test")]
+      (is (= "Widget" (:name data)))
+      (is (= "A nice widget" (:description data)))
+      (is (empty? threats))))
+  (testing "has-malicious-content? detects XSS and SQL injection"
+    (is (sanitize/has-malicious-content? [{:type "XSS"}]))
+    (is (sanitize/has-malicious-content? [{:type "SQL Injection"}]))
+    (is (not (sanitize/has-malicious-content? [{:type "Formula Injection"}])))
+    (is (not (sanitize/has-malicious-content? [])))))
 
 (deftest test-detect-threats
   (testing "detects XSS"

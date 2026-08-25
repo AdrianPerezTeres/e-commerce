@@ -80,10 +80,20 @@
       (with-redefs [db/execute-one! (constantly product)]
         (let [result (svc/create-product {:name "Widget" :sku "W-1" :price "10" :stock "5"})]
           (is (= "p1" (:id result)))))))
-  (testing "returns error on exception"
-    (with-redefs [db/execute-one! (fn [_] (throw (Exception. "duplicate key")))]
+  (testing "rejects XSS content with threat details"
+    (with-redefs [db/execute-one! (constantly {:id "p1"})]
+      (let [result (svc/create-product {:name "<script>alert('xss')</script>" :sku "X-1"})]
+        (is (= "Input rejected — malicious content detected" (:error result)))
+        (is (some #(= "XSS" (:type %)) (:threats result))))))
+  (testing "returns duplicate SKU error"
+    (with-redefs [db/execute-one! (fn [_] (throw (Exception. "duplicate key value violates unique constraint")))]
       (let [result (svc/create-product {:name "Widget" :sku "W-1"})]
-        (is (= "Failed to create product" (:error result)))))))
+        (is (re-find #"Duplicate SKU" (:error result))))))
+  (testing "returns detail on other exceptions"
+    (with-redefs [db/execute-one! (fn [_] (throw (Exception. "connection refused")))]
+      (let [result (svc/create-product {:name "Widget" :sku "W-1"})]
+        (is (= "Failed to create product" (:error result)))
+        (is (= "connection refused" (:detail result)))))))
 
 (deftest test-update-product
   (testing "updates existing product"
@@ -99,7 +109,21 @@
     (with-redefs [db/execute-one! (constantly nil)]
       (let [result (svc/update-product "nonexistent" {:name "New"})]
         (is (= "Product not found" (:error result))))))
-  (testing "returns error on exception"
+  (testing "rejects XSS content with threat details"
+    (with-redefs [db/execute-one! (constantly {:id "p1" :name "Old"})]
+      (let [result (svc/update-product "p1" {:name "<script>alert('xss')</script>"})]
+        (is (= "Input rejected — malicious content detected" (:error result)))
+        (is (some #(= "XSS" (:type %)) (:threats result))))))
+  (testing "returns duplicate SKU error"
+    (let [call-count (atom 0)]
+      (with-redefs [db/execute-one! (fn [_]
+                                      (swap! call-count inc)
+                                      (if (= 1 @call-count)
+                                        {:id "p1" :name "Widget"}
+                                        (throw (Exception. "duplicate key value violates unique constraint"))))]
+        (let [result (svc/update-product "p1" {:sku "TAKEN"})]
+          (is (re-find #"Duplicate SKU" (:error result)))))))
+  (testing "returns detail on other exceptions"
     (let [call-count (atom 0)]
       (with-redefs [db/execute-one! (fn [_]
                                       (swap! call-count inc)
@@ -107,7 +131,8 @@
                                         {:id "p1" :name "Widget"}
                                         (throw (Exception. "db error"))))]
         (let [result (svc/update-product "p1" {:name "New"})]
-          (is (= "Failed to update product" (:error result))))))))
+          (is (= "Failed to update product" (:error result)))
+          (is (= "db error" (:detail result))))))))
 
 (deftest test-delete-product
   (testing "deletes existing product"

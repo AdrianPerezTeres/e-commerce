@@ -52,9 +52,36 @@ stages:
             displayName: 'Run tests with coverage'
 
           - script: |
+              python3 << 'PYEOF'
+              import xml.etree.ElementTree as ET, time
+              root = ET.parse("target/coverage/coverage.xml").getroot()
+              pkgs_el = ET.Element("packages")
+              total_lines = total_covered = 0
+              for pkg in root.findall(".//package"):
+                  name = pkg.get("name")
+                  for cov in pkg.findall("coverage"):
+                      if cov.get("type","").startswith("line"):
+                          val = cov.get("value","0% (0/0)")
+                          nums = val.split("(")[1].rstrip(")").split("/")
+                          covered, total = int(nums[0]), int(nums[1])
+                          rate = covered/total if total else 0
+                          total_lines += total; total_covered += covered
+                          p = ET.SubElement(pkgs_el, "package", name=name, **{"line-rate": f"{rate:.4f}", "branch-rate": "0", "complexity": "0"})
+                          cls = ET.SubElement(ET.SubElement(p, "classes"), "class", name=name, filename=name.replace(".","/") + ".clj", **{"line-rate": f"{rate:.4f}", "branch-rate": "0"})
+                          lines = ET.SubElement(cls, "lines")
+                          for i in range(1, total+1):
+                              ET.SubElement(lines, "line", number=str(i), hits="1" if i <= covered else "0")
+              overall = total_covered/total_lines if total_lines else 0
+              cob = ET.Element("coverage", version="1", timestamp=str(int(time.time())), **{"lines-valid": str(total_lines), "lines-covered": str(total_covered), "line-rate": f"{overall:.4f}", "branches-valid": "0", "branches-covered": "0", "branch-rate": "0", "complexity": "0"})
+              cob.append(pkgs_el)
+              ET.ElementTree(cob).write("target/coverage/cobertura.xml", xml_declaration=True, encoding="UTF-8")
+              print(f"Generated cobertura.xml: {total_covered}/{total_lines} lines ({overall:.1%})")
+              PYEOF
+            displayName: 'Convert coverage to Cobertura XML'
+
+          - script: |
               mkdir -p "$(Build.ArtifactStagingDirectory)/coverage"
-              find target/coverage -name "*.xml" \
-                -exec cp --parents -t "$(Build.ArtifactStagingDirectory)/coverage/" {} + 2>/dev/null || true
+              cp -r target/coverage/* "$(Build.ArtifactStagingDirectory)/coverage/"
             displayName: 'Collect backend coverage'
 
           - publish: $(Build.ArtifactStagingDirectory)/coverage
@@ -162,7 +189,7 @@ stages:
           - task: PublishCodeCoverageResults@2
             displayName: 'Publish code coverage'
             inputs:
-              summaryFileLocation: '$(Pipeline.Workspace)/coverage/**/*.xml'
+              summaryFileLocation: '$(Pipeline.Workspace)/coverage/backend/cobertura.xml'
             continueOnError: true
 
   - stage: Deploy

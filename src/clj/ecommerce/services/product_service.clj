@@ -37,55 +37,73 @@
 
 (defn create-product [data]
   (try
-    (let [clean (sanitize/sanitize-product data "API create-product")]
-      (db/execute-one!
-       ["INSERT INTO products (name, sku, description, category, price, stock, weight_kg, created_by, updated_by)
-         VALUES (?, ?, ?, ?, ?::decimal, ?::integer, ?::decimal, ?, ?)
-         RETURNING *"
-        (:name clean)
-        (:sku clean)
-        (:description clean)
-        (:category clean)
-        (:price clean)
-        (:stock clean)
-        (:weight-kg clean)
-        (:created-by clean)
-        (:updated-by clean)]))
+    (let [{:keys [data threats]} (sanitize/sanitize-product data "API create-product")]
+      (if (sanitize/has-malicious-content? threats)
+        {:error   "Input rejected — malicious content detected"
+         :threats (mapv #(select-keys % [:field :type :detail]) threats)}
+        (db/execute-one!
+         ["INSERT INTO products (name, sku, description, category, price, stock, weight_kg, created_by, updated_by)
+           VALUES (?, ?, ?, ?, ?::decimal, ?::integer, ?::decimal, ?, ?)
+           RETURNING *"
+          (:name data)
+          (:sku data)
+          (:description data)
+          (:category data)
+          (:price data)
+          (:stock data)
+          (:weight-kg data)
+          (:created-by data)
+          (:updated-by data)])))
     (catch Exception e
       (log/error e "Failed to create product")
-      {:error "Failed to create product"})))
+      (let [msg (.getMessage e)]
+        (cond
+          (and msg (re-find #"duplicate key|unique constraint" msg))
+          {:error "Duplicate SKU — a product with this SKU already exists"}
+          :else
+          {:error   "Failed to create product"
+           :detail  msg})))))
 
 (defn update-product [id data]
   (let [existing (get-product id)]
     (if-not existing
       {:error "Product not found"}
       (try
-        (let [clean (sanitize/sanitize-product data "API update-product")]
-          (db/execute-one!
-           ["UPDATE products
-             SET name = COALESCE(?, name),
-                 sku = COALESCE(?, sku),
-                 description = COALESCE(?, description),
-                 category = COALESCE(?, category),
-                 price = COALESCE(?::decimal, price),
-                 stock = COALESCE(?::integer, stock),
-                 weight_kg = COALESCE(?::decimal, weight_kg),
-                 updated_by = ?,
-                 updated_at = NOW()
-             WHERE id = ?::uuid
-             RETURNING *"
-            (:name clean)
-            (:sku clean)
-            (:description clean)
-            (:category clean)
-            (:price clean)
-            (:stock clean)
-            (:weight-kg clean)
-            (:updated-by clean)
-            id]))
+        (let [{:keys [data threats]} (sanitize/sanitize-product data "API update-product")]
+          (if (sanitize/has-malicious-content? threats)
+            {:error   "Input rejected — malicious content detected"
+             :threats (mapv #(select-keys % [:field :type :detail]) threats)}
+            (db/execute-one!
+             ["UPDATE products
+               SET name = COALESCE(?, name),
+                   sku = COALESCE(?, sku),
+                   description = COALESCE(?, description),
+                   category = COALESCE(?, category),
+                   price = COALESCE(?::decimal, price),
+                   stock = COALESCE(?::integer, stock),
+                   weight_kg = COALESCE(?::decimal, weight_kg),
+                   updated_by = ?,
+                   updated_at = NOW()
+               WHERE id = ?::uuid
+               RETURNING *"
+              (:name data)
+              (:sku data)
+              (:description data)
+              (:category data)
+              (:price data)
+              (:stock data)
+              (:weight-kg data)
+              (:updated-by data)
+              id])))
         (catch Exception e
           (log/error e "Failed to update product")
-          {:error "Failed to update product"})))))
+          (let [msg (.getMessage e)]
+            (cond
+              (and msg (re-find #"duplicate key|unique constraint" msg))
+              {:error "Duplicate SKU — a product with this SKU already exists"}
+              :else
+              {:error  "Failed to update product"
+               :detail msg})))))))
 
 (defn delete-product [id]
   (let [result (db/execute-one! ["DELETE FROM products WHERE id = ?::uuid RETURNING id" id])]

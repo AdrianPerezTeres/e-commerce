@@ -12,20 +12,21 @@
     (fn [_ _ _]
       [:div {:class "bg-white rounded-xl border border-gray-200 p-6 mb-6 shadow-sm"}
        [:div {:class "grid grid-cols-1 md:grid-cols-2 gap-4"}
-        (for [[field label type] [[:name "Name" "text"]
-                                   [:sku "SKU" "text"]
-                                   [:description "Description" "text"]
-                                   [:category "Category" "text"]
-                                   [:price "Price" "number"]
-                                   [:stock "Stock" "number"]
-                                   [:weight-kg "Weight (kg)" "number"]]]
-          ^{:key field}
-          [:div
-           [:label {:class "block text-sm font-medium text-gray-600 mb-1"} label]
-           [:input {:type      type
-                    :class     "w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                    :value     (get @form field "")
-                    :on-change #(swap! form assoc field (-> % .-target .-value))}]])]
+        (doall
+         (for [[field label type] [[:name "Name" "text"]
+                                    [:sku "SKU" "text"]
+                                    [:description "Description" "text"]
+                                    [:category "Category" "text"]
+                                    [:price "Price" "number"]
+                                    [:stock "Stock" "number"]
+                                    [:weight-kg "Weight (kg)" "number"]]]
+           ^{:key field}
+           [:div
+            [:label {:class "block text-sm font-medium text-gray-600 mb-1"} label]
+            [:input {:type      type
+                     :class     "w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                     :value     (get @form field "")
+                     :on-change #(swap! form assoc field (-> % .-target .-value))}]]))]
        [:button {:class    "mt-4 px-6 py-2 bg-brand-600 text-white rounded-full hover:bg-brand-700 transition-colors font-medium shadow-sm"
                  :on-click #(do (on-submit @form)
                                 (reset! form empty-form))}

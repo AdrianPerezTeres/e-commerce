@@ -7,4 +7,5 @@
  :plugins [:kaocha.plugin/cloverage]
  :cloverage/opts {:ns-exclude-regex ["ecommerce\\.core"
                                      "ecommerce\\.db\\.core"
-                                     "ecommerce\\.db\\.migrations"]}}
+                                     "ecommerce\\.db\\.migrations"]
+                  :emma-xml? true}}
