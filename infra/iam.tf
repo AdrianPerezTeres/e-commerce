@@ -102,6 +102,19 @@ resource "aws_iam_user_policy" "ci" {
           "arn:aws:s3:::ecommerce-tfstate-953761113604",
           "arn:aws:s3:::ecommerce-tfstate-953761113604/*"
         ]
+      },
+      {
+        Sid    = "TerraformManage"
+        Effect = "Allow"
+        Action = [
+          "ec2:*",
+          "iam:*",
+          "ecr:*",
+          "cognito-idp:*",
+          "dynamodb:*",
+          "ssm:*"
+        ]
+        Resource = "*"
       }
     ]
   })
