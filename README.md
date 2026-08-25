@@ -2,7 +2,9 @@
 
 A full-stack e-commerce application built with Clojure (backend) and ClojureScript (frontend), demonstrating enterprise-grade architecture decisions, clean separation of concerns, and production-ready deployment infrastructure.
 
-**CSV file downloaded:** August 22, 2026
+**CSV file downloaded:** August 18, 2026
+
+**Presentation:** [Executive Summary (PowerPoint)](docs/E-Commerce%20Code%20Challenge.pptx) — 3 slides covering architecture, security analysis, and CI/CD infrastructure.
 
 ## Architecture Overview
 
@@ -44,9 +46,28 @@ A full-stack e-commerce application built with Clojure (backend) and ClojureScri
 | CI/CD          | Azure DevOps Pipelines              | Parallel test/build stages, Terraform apply, auto-deploy     |
 | Testing        | Kaocha + Cloverage                  | Clojure test runner with coverage reporting                  |
 
+## Why Go Beyond the Requirements?
+
+The challenge asked for a CRUD app with CSV import — achievable in a weekend with any framework. I deliberately chose to go further to demonstrate the kind of thinking and ownership I bring to real projects:
+
+- **Clojure instead of .NET/Angular** — I could have used my daily stack (.NET + Angular) and finished faster, but LoanPro uses Clojure. Learning and delivering in an unfamiliar language within a tight deadline shows adaptability and commitment.
+- **AWS deployment instead of local-only** — Not required, but a running production URL proves the app works beyond `localhost`. It also demonstrates infrastructure skills (Terraform, CI/CD, Docker, SSM) that are hard to show in a code review alone.
+- **HTTPS + ALB + ACM instead of plain HTTP** — A simple EC2 with port 80 would have worked. Adding an Application Load Balancer with a TLS certificate shows understanding of production architecture.
+- **Cognito (Auth0-style) instead of no auth** — The challenge didn't require authentication. Adding JWT-based RBAC with three roles and a Cognito-ready backend demonstrates security awareness. The simpler path would have been no login at all.
+- **9 security defenses instead of basic validation** — I could have just parsed the CSV and inserted rows. Instead, I analyzed the provided file for attack vectors (XSS, SQL injection, formula injection) and built a layered defense pipeline with threat reporting.
+- **CI/CD pipeline instead of manual deploys** — Azure DevOps with parallel test stages, coverage reporting, Terraform apply, and zero-touch SSM deployment. Every push to main builds, tests, validates, and deploys automatically.
+
+None of these were required. All of them reflect how I approach real work — not just meeting the spec, but thinking about what a production system actually needs.
+
 ## Key Design Decisions
 
-### 1. Separate API + SPA (vs Server-Rendered)
+### 1. Clojure Full-Stack (vs .NET + Angular)
+
+I chose Clojure because LoanPro uses it. Rather than submitting a polished solution in a familiar stack, I wanted to demonstrate willingness to learn and deliver in the team's actual technology. ClojureScript on the frontend (Reagent + Re-frame) keeps the entire codebase in one language and ecosystem.
+
+**Alternative considered:** .NET backend + Angular frontend — my daily stack, would have been faster but wouldn't demonstrate alignment with LoanPro's technology choices.
+
+### 2. Separate API + SPA (vs Server-Rendered)
 
 Chose a REST API backend with a ClojureScript SPA over server-rendered templates because:
 - Clear separation of concerns — backend is a pure API
@@ -56,16 +77,18 @@ Chose a REST API backend with a ClojureScript SPA over server-rendered templates
 
 **Alternative considered:** Server-rendered with Hiccup + HTMX — simpler but less demonstrative of enterprise architecture.
 
-### 2. PostgreSQL (vs SQLite/MongoDB)
+### 3. PostgreSQL (vs SQLite/MongoDB)
 
 - Products, orders, and order items are naturally relational
 - ACID transactions are critical for purchase operations (stock decrement)
 - PostgreSQL's ILIKE and trigram indexing support product search
 - Production-grade database that scales
 
-### 3. CSV Import Validation Pipeline
+**Alternative considered:** SQLite for zero-config simplicity, or MongoDB for schema flexibility — but relational integrity and transactional guarantees were more important for an e-commerce domain.
 
-The provided CSV contains intentional data quality challenges and security attack vectors. Our import pipeline implements 8 numbered defenses (see `csv_import.clj` and `handlers/products.clj`):
+### 4. CSV Import — 9 Security Defenses (vs Basic Parsing)
+
+The provided CSV contains intentional data quality challenges and security attack vectors. The simpler approach would have been to parse and insert — instead, I analyzed the file for attack vectors and built a layered defense pipeline with threat reporting. Our import implements 9 numbered defenses (see `csv_import.clj` and `handlers/products.clj`):
 
 **Security threats detected and neutralized:**
 1. **XSS injection** (`<script>` tags) — stripped via HTML tag regex. React/Reagent auto-escapes on render as second layer
@@ -90,9 +113,11 @@ The import returns a detailed report: imported count, skipped count, duplicate d
 
 **Test files:** See `docs/test-imports/` for 13 test CSVs covering all 9 defenses — XSS payloads, SQL injection, formula injection, binary files disguised as CSV, oversized files, and more. Run `docs/test-imports/generate-bomb.sh` to create the 1M-row and 25MB stress test files.
 
-### 4. Authentication & Role-Based Access Control
+### 5. Authentication & Cognito (vs No Auth)
 
-The app implements JWT-based authentication with three roles. In **development mode** (`AUTH_REQUIRED=false`, default), it auto-authenticates as admin so reviewers don't need to log in. In **Docker/production** (`AUTH_REQUIRED=true`), it requires login and shows three demo accounts on the login page.
+The challenge didn't require authentication. I added it because real e-commerce apps need access control, and it demonstrates security architecture. The app implements JWT-based authentication with three roles. In **development mode** (`AUTH_REQUIRED=false`, default), it auto-authenticates as admin so reviewers don't need to log in. In **Docker/production** (`AUTH_REQUIRED=true`), it requires login and shows three demo accounts on the login page.
+
+**Alternative considered:** No authentication at all — would have saved time but missed the opportunity to demonstrate RBAC, JWT middleware, and Cognito integration.
 
 #### Demo Accounts
 
@@ -120,18 +145,30 @@ The app implements JWT-based authentication with three roles. In **development m
 - **AWS Cognito (RS256)**: When `COGNITO_USER_POOL_ID` is set, switches to Cognito JWKS verification
 - The middleware chain: `wrap-auth` (extract JWT) → `wrap-require-auth` (enforce login) → `wrap-require-role` (enforce permissions)
 
-### 5. deps.edn (vs Leiningen)
+### 6. deps.edn (vs Leiningen)
 
 - deps.edn is the official Clojure CLI tool, actively maintained by the core team
 - More explicit and composable than Leiningen's convention-heavy approach
 - Modern projects in the Clojure ecosystem have converged on deps.edn
 
-### 6. EC2 + docker-compose (vs ECS Fargate)
+**Alternative considered:** Leiningen — more convention-based and widely documented, but deps.edn is the modern standard.
+
+### 7. EC2 + Docker Compose (vs ECS Fargate)
 
 For a demo with a 2-3 week lifespan:
 - EC2 t3.micro: ~$8/month vs ECS + ALB: ~$35+/month
 - docker-compose is simpler to debug and update
 - The architecture is designed to migrate to ECS if needed (containerized, environment-driven config)
+
+**Alternative considered:** ECS Fargate for fully managed containers — production-grade but overkill for a demo. The app is already containerized, so migration is straightforward.
+
+### 8. HTTPS + ALB (vs Plain HTTP)
+
+- Application Load Balancer with ACM certificate for TLS termination
+- HTTP automatically redirects to HTTPS
+- EC2 security group only accepts traffic from the ALB — not directly from the internet
+
+**Alternative considered:** Plain HTTP on the Elastic IP — functional but doesn't demonstrate understanding of production security requirements.
 
 ## Running Locally
 
