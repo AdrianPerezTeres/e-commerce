@@ -8,4 +8,5 @@
       (catch Exception e
         (log/error e "Unhandled exception" {:uri (:uri request) :method (:request-method request)})
         {:status 500
-         :body   {:error "Internal server error"}}))))
+         :body   {:error   "Internal server error"
+                  :detail  (.getMessage e)}}))))

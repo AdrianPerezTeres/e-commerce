@@ -1,7 +1,8 @@
 
 (ns ecommerce.views.admin
   (:require [re-frame.core :as rf]
-            [reagent.core :as r]))
+            [reagent.core :as r]
+            [ecommerce.views.products :refer [pagination-controls calc-per-page admin-row-height]]))
 
 (def empty-form
   {:name "" :sku "" :description "" :category "" :price "" :stock "" :weight-kg ""})
@@ -47,58 +48,82 @@
       "Delete"]]]])
 
 (defn admin-page []
-  (let [editing  (r/atom nil)
-        show-add (r/atom false)]
-    (rf/dispatch [:fetch-products])
-    (fn []
-      (let [role @(rf/subscribe [:auth-role])]
-        (if (not= role "admin")
-          [:div {:class "text-center py-20"}
-           [:h2 {:class "text-2xl font-bold text-gray-400"} "Access Denied"]
-           [:p {:class "mt-2 text-gray-500"} "Only admin users can manage products."]]
-          (let [products @(rf/subscribe [:products])
-                loading  @(rf/subscribe [:products-loading])]
-            [:div
-             [:div {:class "flex items-center justify-between mb-6"}
-              [:h1 {:class "text-3xl font-bold text-gray-900"} "Manage Products"]
-              [:button {:class    "px-6 py-2 bg-brand-600 text-white rounded-full hover:bg-brand-700 transition-colors font-medium shadow-sm"
-                        :on-click #(swap! show-add not)}
-               (if @show-add "Cancel" "Add Product")]]
+  (let [editing    (r/atom nil)
+        show-add   (r/atom false)
+        area-ref   (atom nil)
+        resize-raf (atom nil)
+        measure!   (fn []
+                     (when-let [el @area-ref]
+                       (let [h  (.-clientHeight el)
+                             pp (calc-per-page h admin-row-height)]
+                         (when (pos? pp)
+                           (rf/dispatch [:fetch-products {:per-page pp :page 1}])))))
+        on-resize  (fn []
+                     (when-let [raf @resize-raf] (js/cancelAnimationFrame raf))
+                     (reset! resize-raf (js/requestAnimationFrame measure!)))]
+    (r/create-class
+     {:component-did-mount
+      (fn [_]
+        (js/requestAnimationFrame measure!)
+        (.addEventListener js/window "resize" on-resize))
+      :component-will-unmount
+      (fn [_]
+        (.removeEventListener js/window "resize" on-resize)
+        (when-let [raf @resize-raf] (js/cancelAnimationFrame raf)))
+      :reagent-render
+      (fn []
+        (let [role @(rf/subscribe [:auth-role])]
+          (if (not= role "admin")
+            [:div {:class "text-center py-20"}
+             [:h2 {:class "text-2xl font-bold text-gray-400"} "Access Denied"]
+             [:p {:class "mt-2 text-gray-500"} "Only admin users can manage products."]]
+            (let [products @(rf/subscribe [:products])
+                  loading  @(rf/subscribe [:products-loading])]
+              [:div {:class "flex flex-col flex-1 min-h-0"}
+               [:div {:class "flex items-center justify-between mb-4"}
+                [:h1 {:class "text-3xl font-bold text-gray-900"} "Manage Products"]
+                [:button {:class    "px-6 py-2 bg-brand-600 text-white rounded-full hover:bg-brand-700 transition-colors font-medium shadow-sm"
+                          :on-click #(swap! show-add not)}
+                 (if @show-add "Cancel" "Add Product")]]
 
-             (when @show-add
-               [product-form nil
-                (fn [data]
-                  (rf/dispatch [:create-product data])
-                  (reset! show-add false))
-                "Create Product"])
+               (when @show-add
+                 [product-form nil
+                  (fn [data]
+                    (rf/dispatch [:create-product data])
+                    (reset! show-add false))
+                  "Create Product"])
 
-             (when @editing
-               [:div {:class "mb-4"}
-                [:h2 {:class "text-xl font-semibold text-gray-800 mb-2"} "Edit Product"]
-                [product-form @editing
-                 (fn [data]
-                   (rf/dispatch [:update-product (:id @editing) data])
-                   (reset! editing nil))
-                 "Update Product"]
-                [:button {:class    "px-4 py-2 text-gray-500 hover:text-gray-700 transition-colors"
-                          :on-click #(reset! editing nil)}
-                 "Cancel editing"]])
+               (when @editing
+                 [:div {:class "mb-4"}
+                  [:h2 {:class "text-xl font-semibold text-gray-800 mb-2"} "Edit Product"]
+                  [product-form @editing
+                   (fn [data]
+                     (rf/dispatch [:update-product (:id @editing) data])
+                     (reset! editing nil))
+                   "Update Product"]
+                  [:button {:class    "px-4 py-2 text-gray-500 hover:text-gray-700 transition-colors"
+                            :on-click #(reset! editing nil)}
+                   "Cancel editing"]])
 
-             (if loading
-               [:div {:class "text-center py-12 text-gray-400"} "Loading..."]
-               [:div {:class "overflow-x-auto bg-white rounded-xl border border-gray-200 shadow-sm"}
-                [:table {:class "w-full"}
-                 [:thead
-                  [:tr {:class "border-b border-gray-200 text-left bg-gray-50"}
-                   [:th {:class "px-4 py-3 text-sm font-medium text-gray-500"} "Name"]
-                   [:th {:class "px-4 py-3 text-sm font-medium text-gray-500"} "SKU"]
-                   [:th {:class "px-4 py-3 text-sm font-medium text-gray-500"} "Category"]
-                   [:th {:class "px-4 py-3 text-sm font-medium text-gray-500"} "Price"]
-                   [:th {:class "px-4 py-3 text-sm font-medium text-gray-500"} "Stock"]
-                   [:th {:class "px-4 py-3 text-sm font-medium text-gray-500"} "Actions"]]]
-                 [:tbody
-                  (for [product products]
-                    ^{:key (:id product)}
-                    [product-table-row product
-                     #(reset! editing %)
-                     #(rf/dispatch [:delete-product %])])]]])]))))))
+               (if loading
+                 [:div {:class "text-center py-12 text-gray-400"} "Loading..."]
+                 [:div {:class "flex flex-col flex-1 min-h-0"
+                        :ref   #(when % (reset! area-ref %))}
+                  [:div {:class "overflow-hidden bg-white rounded-xl border border-gray-200 shadow-sm"}
+                   [:table {:class "w-full"}
+                    [:thead
+                     [:tr {:class "border-b border-gray-200 text-left bg-gray-50"}
+                      [:th {:class "px-4 py-3 text-sm font-medium text-gray-500"} "Name"]
+                      [:th {:class "px-4 py-3 text-sm font-medium text-gray-500"} "SKU"]
+                      [:th {:class "px-4 py-3 text-sm font-medium text-gray-500"} "Category"]
+                      [:th {:class "px-4 py-3 text-sm font-medium text-gray-500"} "Price"]
+                      [:th {:class "px-4 py-3 text-sm font-medium text-gray-500"} "Stock"]
+                      [:th {:class "px-4 py-3 text-sm font-medium text-gray-500"} "Actions"]]]
+                    [:tbody
+                     (for [product products]
+                       ^{:key (:id product)}
+                       [product-table-row product
+                        #(reset! editing %)
+                        #(rf/dispatch [:delete-product %])])]]]
+                  [pagination-controls]])]))))
+      })))

@@ -96,7 +96,7 @@
           [:button {:class    "w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
                     :on-click #(do (rf/dispatch [:logout])
                                    (set! (.-hash js/location) "#/login"))}
-           "Sign Out"]])
+           "Switch Role"]])
        (when @show-about?
          [about-dialog #(reset! show-about? false)])])))
 
@@ -122,11 +122,8 @@
         (when (#{"admin"} role)
           [nav-link :import "Import"])]
        [:div {:class "flex items-center space-x-3"}
-        (if authenticated?
-          [avatar-menu user role]
-          [:a {:href  (routes/href :login)
-               :class "text-indigo-100 hover:text-white text-sm px-3 py-2 focus:outline-none"}
-           "Login"])
+        (when authenticated?
+          [avatar-menu user role])
         [nav-link :orders "Orders"]
         (when (#{"admin" "buyer"} role)
           [:a {:href  (routes/href :cart)
@@ -185,8 +182,9 @@
        [:h1 {:class "text-4xl font-bold text-gray-900"} "Welcome to E-Commerce"]])))
 
 (defn main-panel []
-  [:div {:class "min-h-screen bg-gray-50"}
+  [:div {:class "h-screen flex flex-col overflow-hidden bg-gray-50"}
    [notification-bar]
    [navbar]
-   [:main {:class "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"}
-    [current-page]]])
+   [:main {:class "flex-1 min-h-0 flex flex-col"}
+    [:div {:class "flex-1 min-h-0 flex flex-col max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6"}
+     [current-page]]]])

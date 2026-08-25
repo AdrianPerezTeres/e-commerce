@@ -10,6 +10,15 @@
 (rf/reg-sub :products-loading
   (fn [db _] (get-in db [:products :loading])))
 
+(rf/reg-sub :products-total
+  (fn [db _] (get-in db [:products :total])))
+
+(rf/reg-sub :products-page
+  (fn [db _] (or (get-in db [:products :page]) 1)))
+
+(rf/reg-sub :products-per-page
+  (fn [db _] (or (get-in db [:products :per-page]) 20)))
+
 (rf/reg-sub :cart-items
   (fn [db _] (get-in db [:cart :items])))
 

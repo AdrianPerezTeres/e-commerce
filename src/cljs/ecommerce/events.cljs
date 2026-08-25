@@ -26,16 +26,30 @@
 (rf/reg-event-fx
  :fetch-products
  (fn [{:keys [db]} [_ params]]
-   (http/get! {:uri        (str "/api/products?" (some-> params clj->js js/URLSearchParams. .toString))
-               :on-success #(rf/dispatch [:products-loaded %])
-               :on-failure #(rf/dispatch [:set-notification {:type :error :message "Failed to load products"}])})
-   {:db (assoc-in db [:products :loading] true)}))
+   (let [q        (or (:q params) (when-not (contains? params :q) (get-in db [:products :filter-q])))
+         category (or (:category params) (when-not (contains? params :category) (get-in db [:products :filter-category])))
+         page     (or (:page params) 1)
+         per-page (or (:per-page params) (get-in db [:products :per-page]) 20)
+         query-params (cond-> {:page page :per-page per-page}
+                        (seq q)        (assoc :q q)
+                        (seq category) (assoc :category category))]
+     (http/get! {:uri        (str "/api/products?" (-> query-params clj->js js/URLSearchParams. .toString))
+                 :on-success #(rf/dispatch [:products-loaded %])
+                 :on-failure #(rf/dispatch [:set-notification {:type :error :message "Failed to load products"}])})
+     {:db (-> db
+              (assoc-in [:products :loading] true)
+              (assoc-in [:products :page] page)
+              (assoc-in [:products :filter-q] (or q ""))
+              (assoc-in [:products :filter-category] (or category "")))})))
 
 (rf/reg-event-db
  :products-loaded
- (fn [db [_ products]]
+ (fn [db [_ response]]
    (-> db
-       (assoc-in [:products :items] products)
+       (assoc-in [:products :items] (:items response))
+       (assoc-in [:products :total] (:total response))
+       (assoc-in [:products :page] (:page response))
+       (assoc-in [:products :per-page] (:per-page response))
        (assoc-in [:products :loading] false))))
 
 (rf/reg-event-fx

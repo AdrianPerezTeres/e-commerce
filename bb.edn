@@ -52,16 +52,17 @@
              (run 'test:frontend))}
 
   test:backend
-  {:doc  "Run backend tests"
-   :task (clojure {:extra-env dev-env} "-M:test -m kaocha.runner")}
+  {:doc  "Run backend tests with coverage"
+   :task (do (clojure {:extra-env dev-env} "-M:test -m kaocha.runner --plugin cloverage")
+             (shell "cmd /c start target/coverage/index.html"))}
 
   test:frontend
   {:doc  "Run frontend tests"
    :task (shell "npx shadow-cljs compile test && node out/test/test.js")}
 
   test:coverage
-  {:doc  "Run backend tests with coverage"
-   :task (clojure {:extra-env dev-env} "-M:test -m kaocha.runner --plugin cloverage")}
+  {:doc  "Alias for test:backend (always includes coverage)"
+   :task (run 'test:backend)}
 
   build
   {:doc  "Build everything for production"

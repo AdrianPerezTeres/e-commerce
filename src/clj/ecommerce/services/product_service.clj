@@ -22,10 +22,15 @@
         per-page (Integer/parseInt (str per-page))
         offset   (* (dec page) per-page)
         [where params] (build-query {:q q :category category})
-        sql    (str "SELECT * FROM products WHERE 1=1" where
-                    " ORDER BY created_at DESC LIMIT ? OFFSET ?")
-        params (into params [per-page offset])]
-    (db/execute! (into [sql] params))))
+        count-sql (str "SELECT count(*) AS total FROM products WHERE 1=1" where)
+        total     (or (:total (db/execute-one! (into [count-sql] params))) 0)
+        sql       (str "SELECT * FROM products WHERE 1=1" where
+                       " ORDER BY created_at DESC LIMIT ? OFFSET ?")
+        items     (db/execute! (into [sql] (into params [per-page offset])))]
+    {:items    items
+     :total    total
+     :page     page
+     :per-page per-page}))
 
 (defn get-product [id]
   (db/execute-one! ["SELECT * FROM products WHERE id = ?::uuid" id]))
@@ -90,6 +95,8 @@
 
 (defn delete-all-products []
   (let [result (db/execute-one! ["SELECT count(*) AS total FROM products"])]
+    (db/execute! ["DELETE FROM order_items"])
+    (db/execute! ["DELETE FROM orders"])
     (db/execute! ["DELETE FROM products"])
     {:deleted (or (:total result) 0)}))
 

@@ -1,10 +1,10 @@
 ;; CSV Import — 9 Security Defenses
 ;;
 ;; Threats detected in the provided CSV:
-;; 1. XSS — <script> tags in product names (stripped via HTML regex)
-;; 2. SQL Injection — DROP TABLE payloads (neutralized by parameterized queries)
+;; 1. XSS — <script> tags in product names → row rejected
+;; 2. SQL Injection — DROP TABLE payloads → row rejected
 ;; 3. Formula Injection — =, +, -, @, | prefixes (stripped before storage)
-;; 4. Threat Reporting — scans raw values BEFORE sanitization, logs every attack
+;; 4. Threat Reporting — scans raw values, logs every detected attack
 ;;
 ;; Handler-level defenses (see handlers/products.clj):
 ;; 5. File type validation (.csv only)
@@ -35,14 +35,17 @@
                      threats
                      (cond-> threats
                        (re-find sanitize/html-pattern value)
-                       (conj {:line line-num :field field :type "XSS" :detail "HTML/script tags detected and stripped"})
+                       (conj {:line line-num :field field :type "XSS" :detail "HTML/script tags detected — row rejected"})
                        (re-find sanitize/sqli-pattern value)
-                       (conj {:line line-num :field field :type "SQL Injection" :detail "SQL injection pattern detected and neutralized"})
+                       (conj {:line line-num :field field :type "SQL Injection" :detail "SQL injection pattern detected — row rejected"})
                        (re-find sanitize/formula-pattern value)
                        (conj {:line line-num :field field :type "Formula Injection" :detail "Spreadsheet formula prefix detected and stripped"}))))
                  []
                  (map vector fields raw-values))]
     threats))
+
+(defn- has-malicious-content? [threats]
+  (some #(#{"XSS" "SQL Injection"} (:type %)) threats))
 
 (defn- parse-price [s]
   (when-not (str/blank? s)
@@ -111,27 +114,33 @@
                             (update acc :skipped inc)
                             (let [line-num  (+ idx 2)
                                   threats   (detect-threats row line-num)
-                                  acc       (update acc :threats into threats)
-                                  parsed    (parse-row row)
-                                  validated (validate-row parsed line-num)]
-                              (if (:valid validated)
-                                (try
-                                  (let [result (insert-product! tx (:data validated))]
-                                    (if result
-                                      (update acc :imported inc)
-                                      (update acc :duplicates conj
-                                              {:line line-num
-                                               :sku  (:sku parsed)
-                                               :reason "duplicate SKU"})))
-                                  (catch Exception e
+                                  acc       (update acc :threats into threats)]
+                              (if (has-malicious-content? threats)
+                                (do
+                                  (log/warn (str "Row " line-num " rejected — malicious content: "
+                                                 (str/join ", " (map #(str (:type %) " in " (:field %)) threats))))
+                                  (update acc :rejected inc))
+                                (let [parsed    (parse-row row)
+                                      validated (validate-row parsed line-num)]
+                                  (if (:valid validated)
+                                    (try
+                                      (let [result (insert-product! tx (:data validated))]
+                                        (if result
+                                          (update acc :imported inc)
+                                          (update acc :duplicates conj
+                                                  {:line line-num
+                                                   :sku  (:sku parsed)
+                                                   :reason "duplicate SKU"})))
+                                      (catch Exception e
+                                        (update acc :errors conj
+                                                {:line  line-num
+                                                 :error (.getMessage e)})))
                                     (update acc :errors conj
-                                            {:line  line-num
-                                             :error (.getMessage e)})))
-                                (update acc :errors conj
-                                        {:line   (:line validated)
-                                         :errors (:errors validated)})))))
+                                            {:line   (:line validated)
+                                             :errors (:errors validated)})))))))
                         {:imported   0
                          :skipped    0
+                         :rejected   0
                          :duplicates []
                          :errors     []
                          :threats    []}
@@ -144,6 +153,7 @@
         (log/info (str "CSV import complete — "
                        (:imported results) " imported, "
                        (:skipped results) " skipped, "
+                       (:rejected results) " rejected (malicious), "
                        (count (:duplicates results)) " duplicates, "
                        (count (:errors results)) " errors"
                        (when threat-counts (str ", threats [" threat-counts "]")))))
